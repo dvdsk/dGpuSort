@@ -21,8 +21,14 @@ include compile.mk
 # Testing
 # -----------------------------------------------------------------------------
 
-bench/%.mtx: data/%.mtx target/release
+release/%.mtx: target/release
 	target/release $<
+
+debug/%.mtx: target/debug
+	target/debug $<
+
+test: target/test_gpu
+	target/test_gpu
 
 # -----------------------------------------------------------------------------
 # Util

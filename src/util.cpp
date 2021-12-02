@@ -5,8 +5,9 @@
 #include <algorithm>
 
 using std::vector;
+namespace util {
 
-std::vector<uint32_t> random_arry(int n, int seed) {
+vector<uint32_t> random_array(long unsigned int n, long unsigned int seed) {
 
 	std::mt19937 rng(seed);
 
@@ -19,4 +20,16 @@ std::vector<uint32_t> random_arry(int n, int seed) {
 		
 	// return value optimization will prevent copy
 	return data;
+}
+
+// checks if data in array is sorted in ascending order
+bool is_sorted(vector<uint32_t>& data) {
+	uint32_t prev = 0;
+	for(const auto& n : data) {
+		if (n < prev) {
+			return false;
+		}
+	}
+	return true;
+}
 }

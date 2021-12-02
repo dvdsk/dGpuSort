@@ -1,7 +1,33 @@
 CXX = g++
 CC = gcc
 
-BASIC := -std=c++17 -Wall -Wextra -mcmodel=large -I dependencies/dbg
+WARNINGS := \
+	-pedantic \
+	-Wall \
+	-Wextra \
+	-Wcast-align \
+	-Wcast-qual \
+	-Wctor-dtor-privacy \
+	-Wdisabled-optimization \
+	-Wformat=2 \
+	-Winit-self \
+	-Wlogical-op \
+	-Wmissing-declarations \
+	-Wmissing-include-dirs \
+	-Wnoexcept \
+	-Wold-style-cast \
+	-Woverloaded-virtual \
+	-Wredundant-decls \
+	-Wshadow \
+	-Wsign-conversion \
+	-Wsign-promo \
+	-Wstrict-null-sentinel \
+	-Wstrict-overflow=5 \
+	-Wswitch-default \
+	-Wundef \
+	-Wno-unused
+
+BASIC := -std=c++17 -I dependencies/dbg $(WARNINGS)
 
 # -Og; enable optimisations that do not interfere with debugging
 # -ggdb; enable the call stack for better report format
@@ -44,19 +70,20 @@ target/release: override CCFLAGS := $(BASIC) $(PERFORMANCE)
 target/release: $(addprefix build/, main.o $(OBJ))
 	$(CXX) $(CCFLAGS) -o $@ $^
 
-target/test_gpu: $(addprefix build/, gpu.o $(DEPS))
+target/test_gpu: $(addprefix build/, test_gpu.o $(DEPS))
 	$(CXX) $(CCFLAGS) -o $@ $^
 
-target/test_seg: $(addprefix build/, seg.o $(DEPS))
+target/test_seg: $(addprefix build/, test_seg.o $(DEPS))
 	$(CXX) $(CCFLAGS) -o $@ $^
 
-target/test_dist: $(addprefix build/, dist.o $(DEPS))
+target/test_dist: $(addprefix build/, test_dist.o $(DEPS))
 	$(CXX) $(CCFLAGS) -o $@ $^
 
 # -----------------------------------------------------------------------------
 #  dependencies
 # -----------------------------------------------------------------------------
 
+build/backward.o: override CCFLAGS := -std=c++17
 build/backward.o: \
 	dependencies/backward/backward.cpp \
 	dependencies/backward/backward.hpp
