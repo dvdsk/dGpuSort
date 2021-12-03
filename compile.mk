@@ -56,8 +56,10 @@ DIAGNOSTICS := -Og \
 DIAGNOSTICS += -lbfd -ldl
 
 PERFORMANCE := -O3 -flto -D DBG_MACRO_DISABLE -D DBG_MACRO_NO_WARNING
+CUDA_BASIC := $(BASIC)
 CUDA_DIAG := -D _GLIBCXX_DEBUG -D _GLIBCXX_DEBUG_PEDANTIC
-CUDAFLAGS := $(BASIC) $(HEADERS) -x cu -arch=sm_50 -dc -dlink
+CUDA_CCFLAGS := $(BASIC) $(HEADERS) $(CUDA_DIAG) -x cu -arch=sm_50 -dc -g -G
+CUDA_LDFLAGS := -arch=sm_50 -dlink 
 CCFLAGS := $(BASIC) $(HEADERS) $(WARNINGS) $(DIAGNOSTICS)
 LDFLAGS := -lcudart -L/usr/lib/cuda/lib64
 
@@ -106,9 +108,9 @@ build/%.o: src/%.cpp | directories
 
 # gpu code
 build/gpu.o: src/gpu.cu | directories
-	$(NVCC) $(HEADERS) $(CUDA_DIAG) -x cu -arch=sm_50 -dc --output-file $@ --compile $^
+	$(NVCC) $(CUDA_CCFLAGS) --output-file $@ --compile $^
 build/gpu_code.o: build/gpu.o | directories
-	$(NVCC) -arch=sm_50 -dlink $^ --output-file $@
+	$(NVCC) $(CUDA_LDFLAGS) $^ --output-file $@
 
 # test dir
 build/test_gpu.o: src/tests/gpu.cpp | directories

@@ -28,7 +28,7 @@ debug/%.mtx: target/debug
 	target/debug $<
 
 test: target/test_gpu
-	target/test_gpu
+	ASAN_OPTIONS=protect_shadow_gap=0:replace_intrin=0:detect_leaks=0 target/test_gpu
 
 # -----------------------------------------------------------------------------
 # Util

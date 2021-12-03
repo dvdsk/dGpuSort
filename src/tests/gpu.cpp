@@ -1,11 +1,11 @@
 #include "../util.hpp"
 #include "../gpu.hpp"
+#include <cassert>
 
 using std::vector;
 int main() {
 	vector<uint32_t> data = util::random_array(10, 0);
-	sort(data);
-	// test(data);
+	gpu::sort(data);
 
-	assert(util::is_sorted(data) || "data was not sorted");
+	assert(util::is_sorted(data) || !"data not sorted");
 }

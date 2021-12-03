@@ -26,9 +26,11 @@ vector<uint32_t> random_array(long unsigned int n, long unsigned int seed) {
 bool is_sorted(vector<uint32_t>& data) {
 	uint32_t prev = 0;
 	for(const auto& n : data) {
-		if (n < prev) {
-			return false;
+		if (prev < n) {
+			prev = n;
+			continue;
 		}
+		return false;
 	}
 	return true;
 }
