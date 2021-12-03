@@ -1,5 +1,6 @@
 CXX = g++
 CC = gcc
+NVCC = nvcc
 
 WARNINGS := \
 	-pedantic \
@@ -27,7 +28,8 @@ WARNINGS := \
 	-Wundef \
 	-Wno-unused
 
-BASIC := -std=c++17 -I dependencies/dbg $(WARNINGS)
+BASIC := -std=c++17
+HEADERS := -I dependencies/dbg -I /usr/lib/cuda/include
 
 # -Og; enable optimisations that do not interfere with debugging
 # -ggdb; enable the call stack for better report format
@@ -54,30 +56,33 @@ DIAGNOSTICS := -Og \
 DIAGNOSTICS += -lbfd -ldl
 
 PERFORMANCE := -O3 -flto -D DBG_MACRO_DISABLE -D DBG_MACRO_NO_WARNING
-CCFLAGS := $(BASIC) $(DIAGNOSTICS)
-LDFLAGS :=
+CUDA_DIAG := -D _GLIBCXX_DEBUG -D _GLIBCXX_DEBUG_PEDANTIC
+CUDAFLAGS := $(BASIC) $(HEADERS) -x cu -arch=sm_50 -dc -dlink
+CCFLAGS := $(BASIC) $(HEADERS) $(WARNINGS) $(DIAGNOSTICS)
+LDFLAGS := -lcudart -L/usr/lib/cuda/lib64
 
 # -----------------------------------------------------------------------------
 #  binaries
 # -----------------------------------------------------------------------------
 
-OBJ := util.o gpu.o
+OBJ := util.o gpu.o gpu_code.o
 DEPS := $(OBJ) backward.o # linking to backward gives stack backtraces
 target/debug: $(addprefix build/, main.o $(DEPS))
-	$(CXX) $(CCFLAGS) -o $@ $^ 
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^ 
 
-target/release: override CCFLAGS := $(BASIC) $(PERFORMANCE)
+target/release: override CCFLAGS := $(BASIC) $(WARNINGS) $(PERFORMANCE)
+target/release: override CUDA_DIAG := 
 target/release: $(addprefix build/, main.o $(OBJ))
-	$(CXX) $(CCFLAGS) -o $@ $^
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
 target/test_gpu: $(addprefix build/, test_gpu.o $(DEPS))
-	$(CXX) $(CCFLAGS) -o $@ $^
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
 target/test_seg: $(addprefix build/, test_seg.o $(DEPS))
-	$(CXX) $(CCFLAGS) -o $@ $^
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
 target/test_dist: $(addprefix build/, test_dist.o $(DEPS))
-	$(CXX) $(CCFLAGS) -o $@ $^
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
 # -----------------------------------------------------------------------------
 #  dependencies
@@ -94,12 +99,16 @@ build/backward.o: \
 # -----------------------------------------------------------------------------
 
 # generic
-build/%.o: src/%.c src/%.h | directories
-	$(CXX) $(CCFLAGS) -c -o $@ $<
-build/%.o: src/%.cpp src/%.hpp | directories
+build/%.o: src/%.c | directories
 	$(CXX) $(CCFLAGS) -c -o $@ $<
 build/%.o: src/%.cpp | directories
 	$(CXX) $(CCFLAGS) -c -o $@ $<
+
+# gpu code
+build/gpu.o: src/gpu.cu | directories
+	$(NVCC) $(HEADERS) $(CUDA_DIAG) -x cu -arch=sm_50 -dc --output-file $@ --compile $^
+build/gpu_code.o: build/gpu.o | directories
+	$(NVCC) -arch=sm_50 -dlink $^ --output-file $@
 
 # test dir
 build/test_gpu.o: src/tests/gpu.cpp | directories
