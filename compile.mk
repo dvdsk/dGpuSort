@@ -55,6 +55,7 @@ DIAGNOSTICS := -Og \
 # link to binutils_dev for nicer stack tracing
 DIAGNOSTICS += -lbfd -ldl
 
+# TODO add: https://stackoverflow.com/questions/11312719/how-to-compile-mpi-with-gcc
 PERFORMANCE := -O3 -flto -D DBG_MACRO_DISABLE -D DBG_MACRO_NO_WARNING
 CUDA_BASIC := $(BASIC)
 CUDA_DIAG := -D _GLIBCXX_DEBUG -D _GLIBCXX_DEBUG_PEDANTIC
@@ -67,7 +68,7 @@ LDFLAGS := -lcudart -L/usr/lib/cuda/lib64
 #  binaries
 # -----------------------------------------------------------------------------
 
-OBJ := util.o gpu.o gpu_code.o
+OBJ := util.o gpu.o gpu_code.o cpu.o
 DEPS := $(OBJ) backward.o # linking to backward gives stack backtraces
 target/debug: $(addprefix build/, main.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^ 
@@ -78,6 +79,9 @@ target/release: $(addprefix build/, main.o $(OBJ))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
 target/test_gpu: $(addprefix build/, test_gpu.o $(DEPS))
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
+
+target/test_cpu: $(addprefix build/, test_cpu.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
 target/test_seg: $(addprefix build/, test_seg.o $(DEPS))
@@ -113,6 +117,8 @@ build/gpu_code.o: build/gpu.o | directories
 	$(NVCC) $(CUDA_LDFLAGS) $^ --output-file $@
 
 # test dir
+build/test_cpu.o: src/tests/cpu.cpp | directories
+	$(CXX) $(CCFLAGS) -c -o $@ $^ 
 build/test_gpu.o: src/tests/gpu.cpp | directories
 	$(CXX) $(CCFLAGS) -c -o $@ $^ 
 build/test_seq.o: src/tests/seq.cpp | directories

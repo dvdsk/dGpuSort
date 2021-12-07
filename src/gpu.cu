@@ -6,8 +6,40 @@ using std::vector;
 
 __global__
 void add_one(uint32_t* data, unsigned int len) {
+	printf("len:%d\n", len);
 	for (unsigned int i=0; i<len; i++) {
+		printf("data[%d]: %u\n", i, (unsigned int)data[i]);
 		data[i] += 1;
+	}
+}
+
+__device__
+void swap(uint32_t& a, uint32_t& b) {
+	uint32_t temp = a;
+	a = b;
+	b = temp;
+}
+
+__global__
+void gpu_sort(uint32_t* data, unsigned int len) {
+	for (int j=0; j < len-1; j++) { // TODO Sync all blocks if possible
+		if(j%2 == 0) { // trusting the optimizer to optimized branch out
+			for (int i=0; i <= len/2 - 1; i++) { // TODO uses stride (block + threads)
+				uint32_t& a = data[2*i];
+				uint32_t& b = data[2*i+1];
+				if (a > b) {
+					swap(a, b);
+				}
+			}
+		} else {
+			for (int i=0; i <= len/2 - 2; i++) {
+				uint32_t& a = data[2*i+1];
+				uint32_t& b = data[2*i+2];
+				if (a > b) {
+					swap(a, b);
+				}
+			}
+		}
 	}
 }
 
@@ -33,12 +65,13 @@ void sort(vector<uint32_t>& data) {
 	ok = cudaMemcpy(d_data, h_data, bytes, cudaMemcpyHostToDevice);
 	gpu_assert(ok);
 
-	add_one<<<1, 1>>>(d_data, data.size());
+	/* add_one<<<1, 1>>>(d_data, data.size()); */
+	gpu_sort<<<1, 1>>>(d_data, data.size());
 
 	ok = cudaDeviceSynchronize();
 	gpu_assert(ok);
 
-	ok = cudaMemcpy(d_data, h_data, bytes, cudaMemcpyDeviceToHost);
+	ok = cudaMemcpy((void*)h_data, d_data, bytes, cudaMemcpyDeviceToHost);
 	gpu_assert(ok);
 
 	cudaFree((void*)h_data);
