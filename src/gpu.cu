@@ -4,15 +4,6 @@
 
 using std::vector;
 
-__global__
-void add_one(uint32_t* data, unsigned int len) {
-	printf("len:%d\n", len);
-	for (unsigned int i=0; i<len; i++) {
-		printf("data[%d]: %u\n", i, (unsigned int)data[i]);
-		data[i] += 1;
-	}
-}
-
 __device__
 void swap(uint32_t& a, uint32_t& b) {
 	uint32_t temp = a;
@@ -21,31 +12,22 @@ void swap(uint32_t& a, uint32_t& b) {
 }
 
 __global__
-void gpu_sort(uint32_t* data, unsigned int len) {
-	for (int j=0; j < len-1; j++) { // TODO Sync all blocks if possible
-		if(j%2 == 0) { // trusting the optimizer to optimized branch out
-			for (int i=0; i <= len/2 - 1; i++) { // TODO uses stride (block + threads)
-				uint32_t& a = data[2*i];
-				uint32_t& b = data[2*i+1];
-				if (a > b) {
-					swap(a, b);
-				}
-			}
-		} else {
-			for (int i=0; i <= len/2 - 2; i++) {
-				uint32_t& a = data[2*i+1];
-				uint32_t& b = data[2*i+2];
-				if (a > b) {
-					swap(a, b);
-				}
-			}
+void gpu_sort(uint32_t* data, unsigned int len, int offset) {
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = index; i <= len/2 - 1 - offset; i+=stride) {
+		uint32_t& a = data[2*i+offset];
+		uint32_t& b = data[2*i+offset+1];
+		if (a > b) {
+			swap(a, b);
 		}
 	}
 }
 
 // adapted from https://stackoverflow.com/a/14038590
 #define gpu_assert(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
    if (code != cudaSuccess) 
    {
@@ -65,8 +47,21 @@ void sort(vector<uint32_t>& data) {
 	ok = cudaMemcpy(d_data, h_data, bytes, cudaMemcpyHostToDevice);
 	gpu_assert(ok);
 
-	/* add_one<<<1, 1>>>(d_data, data.size()); */
-	gpu_sort<<<1, 1>>>(d_data, data.size());
+	// TitanX tuning: 24 SMM -> blocks multiple of 24
+	auto stride = 5;
+	auto blocks = data.size() / stride;
+
+	for (int j=0; j < data.size()-1; j++) {
+		if(j%2 == 0) { // trusting the optimizer to optimized branch out
+			gpu_sort<<<blocks, 512>>>(d_data, data.size(), 0);
+		} else {
+			gpu_sort<<<blocks, 512>>>(d_data, data.size(), 1);
+		}
+		// using CPU Synchronization to ensure all blocks are done before we
+		// continue to the next run
+		ok = cudaDeviceSynchronize();
+		gpu_assert(ok);
+	}
 
 	ok = cudaDeviceSynchronize();
 	gpu_assert(ok);
