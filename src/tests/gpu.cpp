@@ -7,8 +7,8 @@ int main() {
 	vector<uint32_t> data = util::random_array(200000, 0);
 
 	dbg(data);
-	gpu::sort(data);
+	auto sorted = gpu::sort(data);
 	dbg(data);
 
-	assert(util::is_sorted(data) || !"data not sorted");
+	assert(util::is_sorted(sorted) || !"data not sorted");
 }

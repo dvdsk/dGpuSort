@@ -30,8 +30,8 @@ debug/%.mtx: target/debug
 	target/debug $<
 
 test: target/test_gpu target/test_cpu
-	$(RUNTIME_ENV) target/test_gpu
-	# $(RUNTIME_ENV) target/test_cpu
+	# $(RUNTIME_ENV) target/test_gpu
+	$(RUNTIME_ENV) target/test_cpu
 	
 test_gpu: target/test_gpu
 	prun -np 1 -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/test_gpu

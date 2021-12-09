@@ -36,8 +36,7 @@ void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
    }
 }
 
-namespace gpu {
-void sort(vector<uint32_t>& data) {
+void bubble_sort(vector<uint32_t>& data) {
 	const auto bytes = data.size()*sizeof(uint32_t);
 	uint32_t* d_data = nullptr;
 	const uint32_t* h_data = data.data();
@@ -70,5 +69,11 @@ void sort(vector<uint32_t>& data) {
 	gpu_assert(ok);
 
 	cudaFree((void*)h_data);
+}
+
+namespace gpu {
+vector<uint32_t> sort(vector<uint32_t>& data) {
+	vector<uint32_t> buckets;
+	return buckets;
 }
 }

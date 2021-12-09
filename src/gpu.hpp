@@ -4,5 +4,5 @@
 #include <vector>
 
 namespace gpu {
-void sort(std::vector<uint32_t>& data);
+std::vector<uint32_t> sort(std::vector<uint32_t>& data);
 }
