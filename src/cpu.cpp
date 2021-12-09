@@ -86,7 +86,8 @@ static void sort_buckets(vector<uint32_t> &buckets,
 			 const uint32_t n_buckets)
 {
 	for (unsigned int i = 0; i < n_buckets; i++) {
-		util::Slice bucket(buckets, offsets[i], offsets[i+1]);
+		auto length = offsets[i+1] - offsets[i];
+		util::Slice bucket(buckets, offsets[i], length);
 
 		bubble_sort(bucket);
 	}

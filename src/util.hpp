@@ -52,7 +52,7 @@ template <typename T> class Slice {
 	}
 	Slice(std::vector<T> &vec, std::size_t offset, std::size_t _len)
 	{
-		assert(offset + _len < vec.size());
+		assert(offset + _len <= vec.size());
 		start = vec.data() + offset;
 		len = _len;
 	}
@@ -67,7 +67,7 @@ template <typename T> class Slice {
 	}
 	CUDA_CALLABLE SliceIterator<T> end()
 	{
-		return SliceIterator(start + len - 1, len);
+		return SliceIterator(start + len, len);
 	}
 };
 
