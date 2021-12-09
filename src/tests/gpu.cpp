@@ -4,7 +4,7 @@
 
 using std::vector;
 int main() {
-	vector<uint32_t> data = util::random_array(200000, 0);
+	vector<uint32_t> data = util::random_array(10, 0);
 
 	dbg(data);
 	auto sorted = gpu::sort(data);
