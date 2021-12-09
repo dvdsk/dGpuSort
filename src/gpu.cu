@@ -71,8 +71,70 @@ void bubble_sort(vector<uint32_t>& data) {
 	cudaFree((void*)h_data);
 }
 
+__global__
+void bucket_loop(util::Slice<uint32_t> data, util::Slice<uint64_t> offsets, uint32_t bucket_width) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	// inner loop will run in each GPU thread
+	uint32_t start_inc = bucket_width * i;
+	uint32_t end_excl = bucket_width * (i + 1);
+	uint64_t bucket_size = 0;
+
+	for (const auto numb : data) {
+		if (numb >= start_inc && numb < end_excl) {
+			bucket_size += 1;
+		}
+	}
+	offsets[i+1] = bucket_size;
+}
+
+/// count the needed size of each bucket and store them starting
+/// at index 1. Set index 0 to 0. After this function the gpu will have
+/// the bucket offsets at the pointer returned by this function
+uint64_t* bucket_size(const vector<uint32_t> &data,
+				    const uint32_t n_buckets)
+{
+	uint32_t* d_data = nullptr;
+	const auto data_size = data.size()*sizeof(uint32_t);
+	auto ok = cudaMalloc((void**) &d_data, data_size);
+	gpu_assert(ok);
+
+	uint64_t* d_offsets = nullptr;
+	const auto offsets_size = (n_buckets + 1) * sizeof(uint64_t);
+	ok = cudaMalloc((void**) &d_offsets, offsets_size);
+	gpu_assert(ok);
+
+	const uint32_t* h_data = data.data();
+	ok = cudaMemcpy(d_data, h_data, data_size, cudaMemcpyHostToDevice);
+	gpu_assert(ok);
+
+	uint64_t first_offset_val = 0;
+	ok = cudaMemcpy(d_offsets, &first_offset_val, 1*sizeof(uint64_t), cudaMemcpyHostToDevice);
+	gpu_assert(ok);
+	uint64_t last_offset_val = data.size();
+	uint64_t* d_last_offset = d_offsets + offsets_size - sizeof(uint64_t);
+	ok = cudaMemcpy(d_last_offset, &last_offset_val, 1*sizeof(uint64_t), cudaMemcpyHostToDevice);
+	gpu_assert(ok);
+
+	auto bucket_width = std::numeric_limits<uint32_t>::max() / n_buckets;
+	auto s1 = util::Slice(d_data, data.size());
+
+	/* for (uint32_t i = 0; i < n_buckets - 1; i++) { */
+	bucket_loop<<<1,n_buckets-1>>>(s1, 
+			util::Slice(d_offsets, n_buckets+1), bucket_width);
+
+	return d_offsets;
+}
+
 namespace gpu {
 vector<uint32_t> sort(vector<uint32_t>& data) {
+	auto offsets = util::filled_vec<uint64_t>(2+1);
+	auto d_offsets = bucket_size(data, 2);
+	auto ok = cudaMemcpy((void*)d_offsets, offsets.data(), 3*sizeof(uint64_t), cudaMemcpyDeviceToHost);
+	gpu_assert(ok);
+	dbg(offsets);
+
+	/* auto buckets = place_elements(data, offsets, 2); */
+
 	vector<uint32_t> buckets;
 	return buckets;
 }

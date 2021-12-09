@@ -1,4 +1,5 @@
 #include "util.hpp"
+#include <cstdint>
 #include <limits>
 #include <random>
 #include <stdlib.h>
@@ -8,15 +9,21 @@ using std::vector;
 namespace util
 {
 
-vector<uint32_t> filled_vec(uint64_t len)
+template <typename T>
+// returns a vector filled with zeros
+vector<T> filled_vec(uint64_t len)
 {
-	vector<uint32_t> vec;
+	vector<T> vec;
 	vec.reserve(len);
 	for (uint64_t i = 0; i < len; i++) {
 		vec.push_back(0);
 	}
 	return vec;
 }
+// NVCC wont instanciate templates for cpu code so this needs
+// to be done explicitly
+template vector<uint32_t> filled_vec<uint32_t>(uint64_t len);
+template vector<uint64_t> filled_vec<uint64_t>(uint64_t len);
 
 vector<uint32_t> random_array(long unsigned int n, long unsigned int seed)
 {
