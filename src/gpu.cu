@@ -104,7 +104,7 @@ static util::Slice<uint32_t> data_to_gpu(const vector<uint32_t> &data) {
 /// count the needed size of each bucket and store them starting
 /// at index 1. Set index 0 to 0. After this function the gpu will have
 /// the bucket offsets at the pointer returned by this function
-util::Slice<uint64_t> bucket_size(util::Slice<uint32_t> d_data, const uint32_t n_buckets)
+util::Slice<uint64_t> bucket_sizes(util::Slice<uint32_t> d_data, const uint32_t n_buckets)
 {
 	uint64_t* d_arr = nullptr;
 	const auto offsets_size = (n_buckets + 1) * sizeof(uint64_t);
@@ -114,19 +114,23 @@ util::Slice<uint64_t> bucket_size(util::Slice<uint32_t> d_data, const uint32_t n
 	uint64_t first_offset_val = 0;
 	ok = cudaMemcpy(d_arr, &first_offset_val, 1*sizeof(uint64_t), cudaMemcpyHostToDevice);
 	gpu_assert(ok);
-	uint64_t last_offset_val = d_data.len;
-	uint64_t* d_last_offset = d_arr + (n_buckets + 1) - 1;
-	ok = cudaMemcpy(d_last_offset, &last_offset_val, 1*sizeof(uint64_t), cudaMemcpyHostToDevice);
-	gpu_assert(ok);
 
-	util::Slice d_offsets(d_arr, n_buckets+1);
+	util::Slice d_sizes(d_arr, n_buckets+1);
 	auto bucket_width = std::numeric_limits<uint32_t>::max() / n_buckets;
-	bucket_loop<<<1,n_buckets-1>>>(d_data, d_offsets, bucket_width);
+	bucket_loop<<<1,n_buckets-1>>>(d_data, d_sizes, bucket_width);
 	ok = cudaDeviceSynchronize();
 	gpu_assert(ok);
 
-	
-	return d_offsets;
+	return d_sizes;
+}
+
+util::Slice<uint64_t> to_offsets(util::Slice<uint64_t> d_sizes) {
+	auto prev = 0;
+	for(auto& s : d_sizes) {
+		s += prev;
+		prev = s;
+	}
+	return d_sizes;
 }
 
 void place_elements(util::Slice<uint32_t> d_data, util::Slice<uint64_t> d_offsets) {
@@ -137,7 +141,9 @@ namespace gpu {
 vector<uint32_t> sort(vector<uint32_t>& data) {
 	auto offsets = util::filled_vec<uint64_t>(2+1);
 	auto d_data = data_to_gpu(data);
-	auto d_offsets = bucket_size(d_data, 2);
+	auto n = util::n_buckets(data.size());
+	auto d_sizes = bucket_sizes(d_data, n);
+	auto d_offsets = to_offsets(d_sizes);
 	auto ok = cudaMemcpy(offsets.data(), d_offsets.start, 3*sizeof(uint64_t), cudaMemcpyDeviceToHost);
 	gpu_assert(ok);
 	dbg(offsets);

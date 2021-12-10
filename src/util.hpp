@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ostream>
 #ifdef __CUDACC__
 #define CUDA_CALLABLE __host__ __device__
 #else
@@ -13,6 +14,7 @@
 
 namespace util
 {
+uint32_t n_buckets(std::size_t n_elem);
 
 template <typename T> class SliceIterator {
 	template <typename U> friend class Slice;
@@ -56,10 +58,26 @@ template <typename T> class Slice {
 		start = vec.data() + offset;
 		len = _len;
 	}
+	CUDA_CALLABLE bool is_empty() const
+	{
+		return len == 0;
+	}
+	CUDA_CALLABLE std::size_t size() const
+	{
+		return len;
+	}
 	CUDA_CALLABLE T &operator[](std::size_t idx)
 	{
+		if (idx >= len) {
+			dbg(idx, len);
+		}
 		assert(idx < len);
 		return const_cast<T &>(*(start + idx));
+	}
+	CUDA_CALLABLE T operator[](std::size_t idx) const
+	{
+		assert(idx < len);
+		return *(start + idx);
 	}
 	CUDA_CALLABLE SliceIterator<T> begin()
 	{
@@ -71,9 +89,22 @@ template <typename T> class Slice {
 	}
 };
 
+template <typename T>
+std::ostream &operator<<(std::ostream &os, const Slice<T> slice)
+{
+	os << "[";
+	for (int i = 0; i < slice.size(); ++i) {
+		os << slice[i];
+		if (i != slice.size() - 1)
+			os << ", ";
+	}
+	os << "]\n";
+	return os;
+}
+
 template <typename T> std::vector<T> filled_vec(uint64_t len);
 std::vector<uint32_t> random_array(long unsigned int n, long unsigned int seed);
-bool is_sorted(std::vector<uint32_t> &data);
+void assert_sort(std::vector<uint32_t> &sorted, std::vector<uint32_t> &data);
 
 } // namespace util
 

@@ -1,0 +1,52 @@
+#pragma once
+#include "seq_sort.hpp"
+#include <cstddef>
+#include <vector>
+
+CUDA_CALLABLE static void swap(uint32_t &a, uint32_t &b)
+{
+	uint32_t temp = a;
+	a = b;
+	b = temp;
+}
+
+CUDA_CALLABLE static std::size_t partition(std::vector<uint32_t> A,
+					   std::size_t lo, std::size_t hi)
+{
+	std::size_t pivot = A[hi];
+	auto i = lo - 1;
+
+	for (auto j = lo; j <= hi; j++) {
+		if (A[j] <= pivot) {
+			i++;
+			swap(A[i], A[j]);
+		}
+	}
+	i++;
+	swap(A[i], A[hi]);
+	return i;
+}
+
+CUDA_CALLABLE static void quick(std::vector<uint32_t> A, std::size_t lo,
+			      std::size_t hi)
+{
+	if (lo >= hi || lo < 0) {
+		return;
+	}
+
+	std::size_t p = partition(A, lo, hi);
+	quick(A, lo, p - 1);
+	quick(A, p + 1, hi);
+}
+
+namespace seq_sort
+{
+CUDA_CALLABLE void quick_sort(std::vector<uint32_t> A)
+{
+	// if (A.is_empty()) {
+	// 	return;
+	// }
+	dbg(A.size());
+    quick(A, 0, A.size() - 1);
+}
+} // namespace seq_sort

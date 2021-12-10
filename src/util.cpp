@@ -41,7 +41,7 @@ vector<uint32_t> random_array(long unsigned int n, long unsigned int seed)
 }
 
 // checks if data in array is sorted in ascending order
-bool is_sorted(vector<uint32_t> &data)
+static bool is_sorted(vector<uint32_t> &data)
 {
 	uint32_t prev = 0;
 	for (const auto &n : data) {
@@ -52,5 +52,22 @@ bool is_sorted(vector<uint32_t> &data)
 		return false;
 	}
 	return true;
+}
+
+void assert_sort(std::vector<uint32_t> &sorted, std::vector<uint32_t> &data)
+{
+	assert(sorted.size() == data.size() || !"elements went missing");
+	assert(util::is_sorted(sorted) || !"data not sorted");
+}
+
+static uint32_t divide_round_up(uint32_t n, uint32_t d)
+{
+	return (n + (d - 1)) / d;
+}
+
+uint32_t n_buckets(std::size_t n_elem)
+{
+	constexpr int BUCKET_SIZE = 1024;
+	return divide_round_up(n_elem, BUCKET_SIZE);
 }
 } // namespace util

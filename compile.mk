@@ -68,7 +68,7 @@ LDFLAGS := -lcudart -L/usr/lib/cuda/lib64
 #  binaries
 # -----------------------------------------------------------------------------
 
-OBJ := util.o gpu.o gpu_code.o cpu.o
+OBJ := util.o gpu.o gpu_code.o cpu.o seq_sort.o
 DEPS := $(OBJ) backward.o # linking to backward gives stack backtraces
 target/debug: $(addprefix build/, main.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^ 

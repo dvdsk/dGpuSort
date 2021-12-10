@@ -4,11 +4,11 @@
 
 using std::vector;
 int main() {
-	vector<uint32_t> data = util::random_array(10, 0);
+	vector<uint32_t> data = util::random_array(2000, 0);
 
 	dbg(data);
 	auto sorted = gpu::sort(data);
-	dbg(data);
+	dbg(sorted);
 
-	assert(util::is_sorted(sorted) || !"data not sorted");
+	util::assert_sort(sorted, data);
 }

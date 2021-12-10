@@ -1,5 +1,7 @@
 #include "cpu.hpp"
+#include "seq_sort.hpp"
 #include "util.hpp"
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 
@@ -16,7 +18,7 @@ static vector<uint64_t> bucket_size(const vector<uint32_t> &data,
 	auto bucket_width = std::numeric_limits<uint32_t>::max() / n_buckets;
 
 	// do not measure the size of the last bucket, as it can be inferred
-	for (uint32_t i = 0; i < n_buckets - 1; i++) {
+	for (uint32_t i = 0; i < n_buckets; i++) {
 		// inner loop will run in each GPU thread
 		uint32_t start_inc = bucket_width * i;
 		uint32_t end_excl = bucket_width * (i + 1);
@@ -29,8 +31,16 @@ static vector<uint64_t> bucket_size(const vector<uint32_t> &data,
 		}
 		buckets.push_back(bucket_size);
 	}
-	buckets.push_back(data.size());
 	return buckets;
+}
+
+static vector<uint64_t> to_offsets(vector<uint64_t> sizes) {
+	uint64_t prev = 0;
+	for (auto& s : sizes) {
+		s += prev;
+		prev = s;
+	}
+	return sizes;
 }
 
 static vector<uint32_t> place_elements(const vector<uint32_t> &data,
@@ -57,30 +67,6 @@ static vector<uint32_t> place_elements(const vector<uint32_t> &data,
 	return buckets;
 }
 
-static void swap(uint32_t &a, uint32_t &b)
-{
-	uint32_t temp = a;
-	a = b;
-	b = temp;
-}
-
-static void bubble_sort(util::Slice<uint32_t> data)
-{
-	for (auto &a : data) {
-		auto done = true;
-		for (auto &b : data) {
-			if (a < b) {
-				swap(a, b);
-				done = false;
-			}
-		}
-
-		if (done) {
-			break;
-		}
-	}
-}
-
 static void sort_buckets(vector<uint32_t> &buckets,
 			 const vector<uint64_t> &offsets,
 			 const uint32_t n_buckets)
@@ -88,8 +74,9 @@ static void sort_buckets(vector<uint32_t> &buckets,
 	for (unsigned int i = 0; i < n_buckets; i++) {
 		auto length = offsets[i+1] - offsets[i];
 		util::Slice bucket(buckets, offsets[i], length);
-
-		bubble_sort(bucket);
+		dbg(i, length);
+		// seq_sort::quick_sort(bucket);
+		dbg(n_buckets);
 	}
 }
 
@@ -97,11 +84,13 @@ namespace cpu
 {
 vector<uint32_t> sort(std::vector<uint32_t> &data)
 {
-	auto offsets = bucket_size(data, 2);
+	auto n = util::n_buckets(data.size());
+	auto sizes = bucket_size(data, n);
+	auto offsets = to_offsets(std::move(sizes));
 	// TODO merge and split buckets that are too large/small
 	// only if absolutely needed (do not think so, should be uniform?)
-	auto buckets = place_elements(data, offsets, 2);
-	sort_buckets(buckets, offsets, 2);
+	auto buckets = place_elements(data, offsets, n);
+	sort_buckets(buckets, offsets, n);
 	return buckets;
 }
 } // namespace cpu
