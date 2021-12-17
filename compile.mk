@@ -90,6 +90,8 @@ target/test_seg: $(addprefix build/, test_seg.o $(DEPS))
 target/test_dist: $(addprefix build/, test_dist.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
+target/test_slice: $(addprefix build/, test_slice.o $(DEPS))
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 # -----------------------------------------------------------------------------
 #  dependencies
 # -----------------------------------------------------------------------------
@@ -123,5 +125,7 @@ build/test_gpu.o: src/tests/gpu.cpp | directories
 	$(CXX) $(CCFLAGS) -c -o $@ $^ 
 build/test_seq.o: src/tests/seq.cpp | directories
 	$(CXX) $(CCFLAGS) -c -o $@ $^ 
-build/test_dist: src/tests/dist.cpp | directories
+build/test_dist.o: src/tests/dist.cpp | directories
+	$(CXX) $(CCFLAGS) -c -o $@ $^ 
+build/test_slice.o: src/tests/slice.cpp | directories
 	$(CXX) $(CCFLAGS) -c -o $@ $^ 

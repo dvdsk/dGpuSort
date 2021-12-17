@@ -10,11 +10,12 @@ int main() {
 	vector<uint32_t> data = util::random_array(6, 0);
 	dbg(data);
 	// auto sorted = cpu::sort(data);
-	// util::Slice<uint32_t> test(data, 0, data.size());
+	util::Slice<uint32_t> test(data, 0, data.size());
 	// for (std::size_t i=0; i<test.size(); i++) {
 	// 	dbg(test[i]);
 	// }
 
-	seq_sort::quick_sort(data);
+	seq_sort::quick_sort(test);
+	dbg(data);
 	util::assert_sort(data, data);
 }

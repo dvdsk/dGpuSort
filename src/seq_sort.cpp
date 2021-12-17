@@ -10,43 +10,39 @@ CUDA_CALLABLE static void swap(uint32_t &a, uint32_t &b)
 	b = temp;
 }
 
-CUDA_CALLABLE static std::size_t partition(std::vector<uint32_t> A,
+CUDA_CALLABLE static std::size_t partition(util::Slice<uint32_t> A,
 					   std::size_t lo, std::size_t hi)
 {
 	std::size_t pivot = A[hi];
 	auto i = lo - 1;
 
-	for (auto j = lo; j <= hi; j++) {
+	for (auto j = lo; j < hi; j++) {
 		if (A[j] <= pivot) {
 			i++;
 			swap(A[i], A[j]);
 		}
 	}
-	i++;
-	swap(A[i], A[hi]);
-	return i;
+	swap(A[i + 1], A[hi]);
+	return i + 1;
 }
 
-CUDA_CALLABLE static void quick(std::vector<uint32_t> A, std::size_t lo,
-			      std::size_t hi)
+CUDA_CALLABLE static void quick(util::Slice<uint32_t> A, std::size_t lo,
+				std::size_t hi)
 {
-	if (lo >= hi || lo < 0) {
-		return;
+	if (lo < hi) {
+		std::size_t p = partition(A, lo, hi);
+		quick(A, lo, p - 1);
+		quick(A, p + 1, hi);
 	}
-
-	std::size_t p = partition(A, lo, hi);
-	quick(A, lo, p - 1);
-	quick(A, p + 1, hi);
 }
 
 namespace seq_sort
 {
-CUDA_CALLABLE void quick_sort(std::vector<uint32_t> A)
+CUDA_CALLABLE void quick_sort(util::Slice<uint32_t> A)
 {
-	// if (A.is_empty()) {
-	// 	return;
-	// }
-	dbg(A.size());
-    quick(A, 0, A.size() - 1);
+	if (A.size() == 0) {
+		return;
+	}
+	quick(A, 0, A.size() - 1);
 }
 } // namespace seq_sort
