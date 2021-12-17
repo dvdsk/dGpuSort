@@ -6,16 +6,14 @@
 #include <cstdint>
 
 using std::vector;
-int main() {
-	vector<uint32_t> data = util::random_array(6, 0);
-	dbg(data);
-	// auto sorted = cpu::sort(data);
-	util::Slice<uint32_t> test(data, 0, data.size());
-	// for (std::size_t i=0; i<test.size(); i++) {
-	// 	dbg(test[i]);
-	// }
+int main(int argc, char *argv[]) {
+	unsigned long seed = 0;
+	if (argc == 2) {
+		seed = std::stoul(argv[1]);
+	}
 
-	seq_sort::quick_sort(test);
-	dbg(data);
-	util::assert_sort(data, data);
+	vector<uint32_t> data = util::random_array(200000, seed);
+	auto sorted = cpu::sort(data);
+
+	util::assert_sort(sorted, data);
 }

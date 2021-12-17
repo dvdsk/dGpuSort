@@ -58,6 +58,13 @@ template <typename T> class Slice {
 		start = vec.data() + offset;
 		len = _len;
 	}
+	std::vector<T> as_vec() {
+		std::vector<T> vec;
+		for (const auto& e : *this) {
+			vec.push_back(e);
+		}
+		return vec;
+	}
 	CUDA_CALLABLE bool is_empty() const
 	{
 		return len == 0;
@@ -102,7 +109,7 @@ std::ostream &operator<<(std::ostream &os, const Slice<T> slice)
 	return os;
 }
 
-template <typename T> std::vector<T> filled_vec(uint64_t len);
+template <typename T> std::vector<T> filled_vec(uint64_t len, T value);
 std::vector<uint32_t> random_array(long unsigned int n, long unsigned int seed);
 void assert_sort(std::vector<uint32_t> &sorted, std::vector<uint32_t> &data);
 

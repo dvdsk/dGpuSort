@@ -84,7 +84,7 @@ target/test_gpu: $(addprefix build/, test_gpu.o $(DEPS))
 target/test_cpu: $(addprefix build/, test_cpu.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
-target/test_seg: $(addprefix build/, test_seg.o $(DEPS))
+target/test_seq: $(addprefix build/, test_seq.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
 target/test_dist: $(addprefix build/, test_dist.o $(DEPS))

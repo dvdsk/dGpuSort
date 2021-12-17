@@ -1,6 +1,7 @@
 #pragma once
 #include "seq_sort.hpp"
 #include <cstddef>
+#include <limits>
 #include <vector>
 
 CUDA_CALLABLE static void swap(uint32_t &a, uint32_t &b)
@@ -29,7 +30,7 @@ CUDA_CALLABLE static std::size_t partition(util::Slice<uint32_t> A,
 CUDA_CALLABLE static void quick(util::Slice<uint32_t> A, std::size_t lo,
 				std::size_t hi)
 {
-	if (lo < hi) {
+	if (lo < hi && hi != std::numeric_limits<std::size_t>::max()) {
 		std::size_t p = partition(A, lo, hi);
 		quick(A, lo, p - 1);
 		quick(A, p + 1, hi);

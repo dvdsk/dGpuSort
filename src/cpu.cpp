@@ -48,7 +48,7 @@ static vector<uint32_t> place_elements(const vector<uint32_t> &data,
 				       const uint32_t n_buckets)
 {
 	auto bucket_width = std::numeric_limits<uint32_t>::max() / n_buckets;
-	auto buckets = util::filled_vec<uint32_t>(data.size());
+	auto buckets = util::filled_vec<uint32_t>(data.size(), 0);
 
 	for (uint32_t i = 0; i < n_buckets; i++) {
 		// in parallel over all GPU threads
@@ -74,9 +74,7 @@ static void sort_buckets(vector<uint32_t> &buckets,
 	for (unsigned int i = 0; i < n_buckets; i++) {
 		auto length = offsets[i+1] - offsets[i];
 		util::Slice bucket(buckets, offsets[i], length);
-		dbg(i, length);
-		// seq_sort::quick_sort(bucket);
-		dbg(n_buckets);
+		seq_sort::quick_sort(bucket);
 	}
 }
 

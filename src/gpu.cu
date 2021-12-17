@@ -139,7 +139,7 @@ void place_elements(util::Slice<uint32_t> d_data, util::Slice<uint64_t> d_offset
 
 namespace gpu {
 vector<uint32_t> sort(vector<uint32_t>& data) {
-	auto offsets = util::filled_vec<uint64_t>(2+1);
+	auto offsets = util::filled_vec<uint64_t>(2+1, 0);
 	auto d_data = data_to_gpu(data);
 	auto n = util::n_buckets(data.size());
 	auto d_sizes = bucket_sizes(d_data, n);

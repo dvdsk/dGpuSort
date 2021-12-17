@@ -11,19 +11,19 @@ namespace util
 
 template <typename T>
 // returns a vector filled with zeros
-vector<T> filled_vec(uint64_t len)
+vector<T> filled_vec(uint64_t len, T value)
 {
 	vector<T> vec;
 	vec.reserve(len);
 	for (uint64_t i = 0; i < len; i++) {
-		vec.push_back(0);
+		vec.push_back(value);
 	}
 	return vec;
 }
 // NVCC wont instanciate templates for cpu code so this needs
 // to be done explicitly
-template vector<uint32_t> filled_vec<uint32_t>(uint64_t len);
-template vector<uint64_t> filled_vec<uint64_t>(uint64_t len);
+template vector<uint32_t> filled_vec<uint32_t>(uint64_t len, uint32_t value);
+template vector<uint64_t> filled_vec<uint64_t>(uint64_t len, uint64_t value);
 
 vector<uint32_t> random_array(long unsigned int n, long unsigned int seed)
 {
@@ -45,10 +45,11 @@ static bool is_sorted(vector<uint32_t> &data)
 {
 	uint32_t prev = 0;
 	for (const auto &n : data) {
-		if (prev < n) {
+		if (prev <= n) {
 			prev = n;
 			continue;
 		}
+		dbg("prev was smaller then current", prev, n);
 		return false;
 	}
 	return true;
@@ -68,6 +69,7 @@ static uint32_t divide_round_up(uint32_t n, uint32_t d)
 uint32_t n_buckets(std::size_t n_elem)
 {
 	constexpr int BUCKET_SIZE = 1024;
+	// constexpr int BUCKET_SIZE = 1000;
 	return divide_round_up(n_elem, BUCKET_SIZE);
 }
 } // namespace util
