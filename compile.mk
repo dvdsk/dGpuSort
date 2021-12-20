@@ -55,7 +55,6 @@ DIAGNOSTICS := -Og \
 # link to binutils_dev for nicer stack tracing
 DIAGNOSTICS += -lbfd -ldl
 
-# TODO add: https://stackoverflow.com/questions/11312719/how-to-compile-mpi-with-gcc
 PERFORMANCE := -O3 -flto -D DBG_MACRO_DISABLE -D DBG_MACRO_NO_WARNING
 CUDA_BASIC := $(BASIC)
 CUDA_DIAG := -D _GLIBCXX_DEBUG -D _GLIBCXX_DEBUG_PEDANTIC
@@ -68,7 +67,7 @@ LDFLAGS := -lcudart -L/usr/lib/cuda/lib64
 #  binaries
 # -----------------------------------------------------------------------------
 
-OBJ := util.o gpu.o gpu_code.o cpu.o seq_sort.o
+OBJ := util.o gpu.o gpu_code.o cpu.o seq_sort.o dist.o
 DEPS := $(OBJ) backward.o # linking to backward gives stack backtraces
 target/debug: $(addprefix build/, main.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^ 
@@ -87,6 +86,9 @@ target/test_cpu: $(addprefix build/, test_cpu.o $(DEPS))
 target/test_seq: $(addprefix build/, test_seq.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
+# target/test_dist: override CCFLAGS := $(CCFLAGS) $(shell mpicc -showme:compile)
+# target/test_dist: override LDFLAGS := $(LDFLAGS) $(shell mpicc -showme:link)
+target/test_dist: override CXX := mpic++
 target/test_dist: $(addprefix build/, test_dist.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
@@ -125,6 +127,7 @@ build/test_gpu.o: src/tests/gpu.cpp | directories
 	$(CXX) $(CCFLAGS) -c -o $@ $^ 
 build/test_seq.o: src/tests/seq.cpp | directories
 	$(CXX) $(CCFLAGS) -c -o $@ $^ 
+build/test_dist.o: override CXX := mpic++
 build/test_dist.o: src/tests/dist.cpp | directories
 	$(CXX) $(CCFLAGS) -c -o $@ $^ 
 build/test_slice.o: src/tests/slice.cpp | directories
