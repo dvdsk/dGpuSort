@@ -67,14 +67,17 @@ LDFLAGS := -lcudart -L/usr/lib/cuda/lib64
 #  binaries
 # -----------------------------------------------------------------------------
 
-OBJ := util.o gpu.o gpu_code.o cpu.o seq_sort.o dist.o
+OBJ := util.o gpu.o gpu_code.o cpu.o seq_sort.o
 DEPS := $(OBJ) backward.o # linking to backward gives stack backtraces
-target/debug: $(addprefix build/, main.o $(DEPS))
+
+target/debug: override CXX := mpic++
+target/debug: $(addprefix build/, main.o $(DEPS) dist.o)
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^ 
 
+target/release: override CXX := mpic++
 target/release: override CCFLAGS := $(BASIC) $(WARNINGS) $(PERFORMANCE)
 target/release: override CUDA_DIAG := 
-target/release: $(addprefix build/, main.o $(OBJ))
+target/release: $(addprefix build/, main.o $(OBJ) dist.o)
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
 target/test_gpu: $(addprefix build/, test_gpu.o $(DEPS))
@@ -86,10 +89,8 @@ target/test_cpu: $(addprefix build/, test_cpu.o $(DEPS))
 target/test_seq: $(addprefix build/, test_seq.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
-# target/test_dist: override CCFLAGS := $(CCFLAGS) $(shell mpicc -showme:compile)
-# target/test_dist: override LDFLAGS := $(LDFLAGS) $(shell mpicc -showme:link)
 target/test_dist: override CXX := mpic++
-target/test_dist: $(addprefix build/, test_dist.o $(DEPS))
+target/test_dist: $(addprefix build/, test_dist.o $(DEPS) dist.o)
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
 target/test_slice: $(addprefix build/, test_slice.o $(DEPS))

@@ -5,27 +5,33 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#pragma GCC diagnostic push 
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wcast-qual"
 #include <mpi.h>
+#pragma GCC diagnostic pop 
 
 using std::vector;
 int main(int argc, char **argv)
 {
+	bool use_gpu = false;
 	unsigned int seed = 0;
 	dist::init(argc, argv);
 	if (dist::main_process()) {
 		vector<uint32_t> data = util::random_array(200000, seed);
-		auto buckets = dist::into_buckets(data);
-		dist::fan_out(buckets);
+		auto tasks = dist::to_tasks(data);
+		dist::fan_out(tasks);
 		dist::wait_till_done();
-		auto sorted = dist::fan_in();
+		dist::fan_in(tasks);
+		auto sorted = std::move(tasks.data);
 		util::assert_sort(sorted, data);
 	} else {
-		auto task = dist::recieve();
+		auto data = dist::recieve();
 		vector<uint32_t> sorted;
-		if (task.use_gpu) {
-			sorted = gpu::sort(task.data);
+		if (use_gpu) {
+			sorted = gpu::sort(data);
 		} else {
-			sorted = cpu::sort(task.data);
+			sorted = cpu::sort(data);
 		}
 		dist::send(sorted);
 	}
