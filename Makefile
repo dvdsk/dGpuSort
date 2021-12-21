@@ -23,18 +23,15 @@ include compile.mk
 # Testing
 # -----------------------------------------------------------------------------
 
-release/%.mtx: target/release
-	target/release $<
-
-debug/%.mtx: target/debug
-	target/debug $<
-
 test: target/test_gpu target/test_cpu
 	# $(RUNTIME_ENV) target/test_gpu
-	$(RUNTIME_ENV) target/test_cpu
+	# $(RUNTIME_ENV) target/test_cpu
 	
 test_gpu: target/test_gpu
 	prun -np 1 -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/test_gpu
+
+dist_cpu/%: target/test_dist
+	prun -np 2 -script $(PRUN_ETC)/prun-openmpi -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/test_dist
 
 # -----------------------------------------------------------------------------
 # Util
@@ -49,8 +46,3 @@ clean:
 
 clean_all: clean
 	rm -rf data/*
-
-
-r: run #ease of use alias
-run: sequential
-	./sequential "data/nopoly.mtx"

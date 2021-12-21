@@ -21,10 +21,10 @@ int main(int argc, char **argv)
 		vector<uint32_t> data = util::random_array(200000, seed);
 		auto tasks = dist::to_tasks(data);
 		dist::fan_out(tasks);
-		dist::wait_till_done();
 		dist::fan_in(tasks);
 		auto sorted = std::move(tasks.data);
 		util::assert_sort(sorted, data);
+		dist::wait_till_done();
 	} else {
 		auto data = dist::recieve();
 		vector<uint32_t> sorted;
@@ -34,6 +34,7 @@ int main(int argc, char **argv)
 			sorted = cpu::sort(data);
 		}
 		dist::send(sorted);
+		dist::signal_done();
 	}
 	dist::cleanup();
 }

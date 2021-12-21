@@ -1,7 +1,11 @@
 #include <cassert>
 #include <cstdint>
 #include <vector>
+#pragma GCC diagnostic push 
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wcast-qual"
 #include <mpi.h>
+#pragma GCC diagnostic pop 
 #include "util.hpp"
 #include "cpu.hpp"
 #include "dist.hpp"
@@ -57,10 +61,11 @@ bool main_process() {
 
 Task to_tasks(const vector<uint32_t> &data) {
 	Task task;
-	auto offsets = cpu::offsets(data, nodes());
-	task.data = cpu::place_elements(data, offsets, nodes());
+	auto n_tasks = nodes() - 1; //master node does no work
+	auto offsets = cpu::offsets(data, n_tasks);
+	task.data = cpu::place_elements(data, offsets, n_tasks);
 	
-	for (unsigned int i = 0; i < nodes(); i++) {
+	for (unsigned int i = 0; i < n_tasks; i++) {
 		auto length = offsets[i + 1] - offsets[i];
 		util::Slice slice(task.data, offsets[i], length);
 		task.slices.push_back(slice);
@@ -72,11 +77,18 @@ Task to_tasks(const vector<uint32_t> &data) {
 void fan_out(const Task& tasks) {
 	for (unsigned int i=0; i<tasks.slices.size(); i++) {
 		auto slice = tasks.slices[i];
+		dbg(i);
 		send_slice(i+1, slice);
 	}
 }
 
 void wait_till_done() {
+	dbg("");
+	MPI_Barrier(MPI_COMM_WORLD);
+}
+
+void signal_done() {
+	dbg("");
 	MPI_Barrier(MPI_COMM_WORLD);
 }
 
@@ -94,7 +106,7 @@ vector<uint32_t> recieve() {
 	vector<uint32_t> data;
 	data.resize(slice_length);
 
-	MPI_Recv(&data, slice_length, MPI_UNSIGNED, SOURCE, dist::SLICE_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	MPI_Recv(data.data(), slice_length, MPI_UNSIGNED, SOURCE, dist::SLICE_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
 	return data;
 }
