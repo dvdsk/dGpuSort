@@ -68,8 +68,17 @@ static uint32_t divide_round_up(uint32_t n, uint32_t d)
 
 uint32_t n_buckets(std::size_t n_elem)
 {
+	if (n_elem <= 20) {
+		return 2; // test case
+	}
+
 	constexpr int BUCKET_SIZE = 1024;
 	// constexpr int BUCKET_SIZE = 1000;
 	return divide_round_up(n_elem, BUCKET_SIZE);
+}
+
+int devide_up(int num, int denum)
+{
+	return (num + denum - 1) / denum;
 }
 } // namespace util

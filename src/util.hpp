@@ -52,6 +52,12 @@ template <typename T> class Slice {
 		start = _start;
 		len = _len;
 	}
+	CUDA_CALLABLE Slice(Slice<T> slice, std::size_t offset, std::size_t _len)
+	{
+		assert(offset + _len <= slice.size());
+		start = slice.start + offset;
+		len = _len;
+	}
 	Slice(std::vector<T> &vec, std::size_t offset, std::size_t _len)
 	{
 		assert(offset + _len <= vec.size());
@@ -76,7 +82,7 @@ template <typename T> class Slice {
 	CUDA_CALLABLE T &operator[](std::size_t idx)
 	{
 		if (idx >= len) {
-			dbg(idx, len);
+			printf("index: %lu longer then length %lu", idx, len);
 		}
 		assert(idx < len);
 		return const_cast<T &>(*(start + idx));
@@ -112,6 +118,7 @@ std::ostream &operator<<(std::ostream &os, const Slice<T> slice)
 template <typename T> std::vector<T> filled_vec(uint64_t len, T value);
 std::vector<uint32_t> random_array(long unsigned int n, long unsigned int seed);
 void assert_sort(std::vector<uint32_t> &sorted, std::vector<uint32_t> &data);
+int devide_up(int num, int denum);
 
 } // namespace util
 

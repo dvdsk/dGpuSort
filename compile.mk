@@ -118,7 +118,9 @@ build/%.o: src/%.cpp | directories
 # gpu code
 build/gpu.o: src/gpu.cu | directories
 	$(NVCC) $(CUDA_CCFLAGS) --output-file $@ --compile $^
-build/gpu_code.o: build/gpu.o | directories
+build/seq_sort.o: src/seq_sort.cpp | directories
+	$(NVCC) $(CUDA_CCFLAGS) --output-file $@ --compile $^
+build/gpu_code.o: build/gpu.o build/seq_sort.o | directories
 	$(NVCC) $(CUDA_LDFLAGS) $^ --output-file $@
 
 # test dir

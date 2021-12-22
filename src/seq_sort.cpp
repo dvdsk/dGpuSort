@@ -1,4 +1,3 @@
-#pragma once
 #include "seq_sort.hpp"
 #include <cstddef>
 #include <limits>

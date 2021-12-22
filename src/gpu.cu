@@ -1,33 +1,15 @@
 #include "util.hpp"
+#include "seq_sort.hpp"
 #include <cuda_runtime.h>
 #include <vector>
 
 using std::vector;
-
-__device__
-void swap(uint32_t& a, uint32_t& b) {
-	uint32_t temp = a;
-	a = b;
-	b = temp;
-}
-
-__global__
-void gpu_sort(uint32_t* data, unsigned int len, int offset) {
-	int index = blockIdx.x * blockDim.x + threadIdx.x;
-	int stride = blockDim.x * gridDim.x;
-
-	for (int i = index; i <= len/2 - 1 - offset; i+=stride) {
-		uint32_t& a = data[2*i+offset];
-		uint32_t& b = data[2*i+offset+1];
-		if (a > b) {
-			swap(a, b);
-		}
-	}
-}
+using std::size_t;
+using util::Slice;
 
 // adapted from https://stackoverflow.com/a/14038590
 #define gpu_assert(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+static void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
    if (code != cudaSuccess) 
    {
@@ -36,43 +18,8 @@ void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
    }
 }
 
-void bubble_sort(vector<uint32_t>& data) {
-	const auto bytes = data.size()*sizeof(uint32_t);
-	uint32_t* d_data = nullptr;
-	const uint32_t* h_data = data.data();
-	auto ok = cudaMalloc((void**) &d_data, bytes);
-	gpu_assert(ok);
-
-	ok = cudaMemcpy(d_data, h_data, bytes, cudaMemcpyHostToDevice);
-	gpu_assert(ok);
-
-	// TitanX tuning: 24 SMM -> blocks multiple of 24
-	auto stride = 5;
-	auto blocks = data.size() / stride;
-
-	for (int j=0; j < data.size()-1; j++) {
-		if(j%2 == 0) { // trusting the optimizer to optimized branch out
-			gpu_sort<<<blocks, 512>>>(d_data, data.size(), 0);
-		} else {
-			gpu_sort<<<blocks, 512>>>(d_data, data.size(), 1);
-		}
-		// using CPU Synchronization to ensure all blocks are done before we
-		// continue to the next run
-		ok = cudaDeviceSynchronize();
-		gpu_assert(ok);
-	}
-
-	ok = cudaDeviceSynchronize();
-	gpu_assert(ok);
-
-	ok = cudaMemcpy((void*)h_data, d_data, bytes, cudaMemcpyDeviceToHost);
-	gpu_assert(ok);
-
-	cudaFree((void*)h_data);
-}
-
 __global__
-void bucket_loop(util::Slice<uint32_t> data, util::Slice<uint64_t> offsets, uint32_t bucket_width) {
+static void bucket_loop(Slice<uint32_t> data, Slice<uint64_t> offsets, uint32_t bucket_width) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	// inner loop will run in each GPU thread
 	uint32_t start_inc = bucket_width * i;
@@ -87,7 +34,7 @@ void bucket_loop(util::Slice<uint32_t> data, util::Slice<uint64_t> offsets, uint
 	offsets[i+1] = bucket_size;
 }
 
-static util::Slice<uint32_t> data_to_gpu(const vector<uint32_t> &data) {
+static Slice<uint32_t> data_to_gpu(const vector<uint32_t> &data) {
 	uint32_t* d_data = nullptr;
 	const auto data_size = data.size()*sizeof(uint32_t);
 	auto ok = cudaMalloc((void**) &d_data, data_size);
@@ -97,25 +44,21 @@ static util::Slice<uint32_t> data_to_gpu(const vector<uint32_t> &data) {
 	ok = cudaMemcpy(d_data, h_data, data_size, cudaMemcpyHostToDevice);
 	gpu_assert(ok);
 
-	util::Slice d_slice(d_data, data.size());
+	Slice d_slice(d_data, data.size());
 	return d_slice;
 }
 
 /// count the needed size of each bucket and store them starting
 /// at index 1. Set index 0 to 0. After this function the gpu will have
 /// the bucket offsets at the pointer returned by this function
-util::Slice<uint64_t> bucket_sizes(util::Slice<uint32_t> d_data, const uint32_t n_buckets)
+static Slice<uint64_t> bucket_sizes(Slice<uint32_t> d_data, const uint32_t n_buckets)
 {
 	uint64_t* d_arr = nullptr;
 	const auto offsets_size = (n_buckets + 1) * sizeof(uint64_t);
 	auto ok = cudaMalloc((void**) &d_arr, offsets_size);
 	gpu_assert(ok);
 
-	uint64_t first_offset_val = 0;
-	ok = cudaMemcpy(d_arr, &first_offset_val, 1*sizeof(uint64_t), cudaMemcpyHostToDevice);
-	gpu_assert(ok);
-
-	util::Slice d_sizes(d_arr, n_buckets+1);
+	Slice d_sizes(d_arr, n_buckets+1);
 	auto bucket_width = std::numeric_limits<uint32_t>::max() / n_buckets;
 	bucket_loop<<<1,n_buckets-1>>>(d_data, d_sizes, bucket_width);
 	ok = cudaDeviceSynchronize();
@@ -124,33 +67,114 @@ util::Slice<uint64_t> bucket_sizes(util::Slice<uint32_t> d_data, const uint32_t 
 	return d_sizes;
 }
 
-util::Slice<uint64_t> to_offsets(util::Slice<uint64_t> d_sizes) {
+__global__
+static void d_to_offsets(Slice<uint64_t> d_sizes, uint64_t data_len) {
 	auto prev = 0;
 	for(auto& s : d_sizes) {
 		s += prev;
 		prev = s;
 	}
+	d_sizes[d_sizes.size()-1] = data_len;
+	d_sizes[0] = 0;
+}
+
+static Slice<uint64_t> to_offsets(Slice<uint64_t> d_sizes, uint64_t data_len) {
+	dbg(data_len);
+	d_to_offsets<<<1,1>>>(d_sizes, data_len);
+	auto ok = cudaDeviceSynchronize();
+	gpu_assert(ok);
 	return d_sizes;
 }
 
-void place_elements(util::Slice<uint32_t> d_data, util::Slice<uint64_t> d_offsets) {
+__global__
+static void d_place_elements(uint32_t bucket_width, Slice<uint32_t> data, 
+		Slice<uint32_t> buckets, Slice<uint64_t> offsets) 
+{
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	uint32_t start_inc = bucket_width * i;
+	uint32_t end_excl = bucket_width * (i + 1);
 
+	auto offset = offsets[i];
+	for (uint64_t j = 0; j < data.size(); j++) {
+		auto numb = data[j];
+		if (numb >= start_inc && numb < end_excl) {
+			buckets[offset] = numb;
+			offset += 1;
+		}
+	}
+}
+
+// 2 cuda cores per SMM, 24 SMM for titan x -> 48 cores
+// max 1536 threads per core. 512 is more ideal. 32 can simultaniously do work
+// more then 32 is better to hide memory latency etc
+static Slice<uint32_t> place_elements(Slice<uint32_t> d_data, Slice<uint64_t> d_offsets, int n_buckets) {
+	uint32_t* d_arr = nullptr;
+	const auto buckets_size = d_data.size() * sizeof(uint32_t);
+	auto ok = cudaMalloc((void**) &d_arr, buckets_size);
+	gpu_assert(ok);
+
+	auto bucket_width = std::numeric_limits<uint32_t>::max() / n_buckets;
+	
+	// need bucket_size threads
+	int block_size = 256;
+	int num_blocks = (n_buckets + block_size -1) / block_size;
+
+	Slice d_buckets(d_arr, d_data.size());
+	/* d_place_elements<<<num_blocks,block_size>>>(bucket_width, d_data, d_buckets, d_offsets); */
+	d_place_elements<<<1,2>>>(bucket_width, d_data, d_buckets, d_offsets);
+	ok = cudaDeviceSynchronize();
+	gpu_assert(ok);
+
+	return d_buckets;
+}
+
+static vector<uint32_t> download_sorted(Slice<uint32_t> d_buckets) {
+	auto sorted = util::filled_vec<uint32_t>(d_buckets.size(), 0);
+	auto ok = cudaMemcpy(sorted.data(), d_buckets.start, d_buckets.size()*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+	gpu_assert(ok);
+	return sorted;
+}
+
+__global__
+static void d_sort_buckets(Slice<uint32_t> buckets, Slice<uint64_t> offsets, size_t n_buckets) {
+	for (unsigned int i = 0; i < n_buckets; i++) {
+		auto length = offsets[i + 1] - offsets[i];
+		Slice bucket(buckets, offsets[i], length);
+		seq_sort::quick_sort(bucket);
+	}
+}
+
+static void sort_buckets(Slice<uint32_t> d_buckets, Slice<uint64_t> d_offsets, size_t n_buckets) {
+	int block_size = 256;
+	int num_blocks = (n_buckets + block_size -1) / block_size;
+	d_sort_buckets<<<num_blocks, block_size>>>(d_buckets, d_offsets, n_buckets);
+	auto ok = cudaDeviceSynchronize();
+	gpu_assert(ok);
 }
 
 namespace gpu {
 vector<uint32_t> sort(vector<uint32_t>& data) {
-	auto offsets = util::filled_vec<uint64_t>(2+1, 0);
 	auto d_data = data_to_gpu(data);
 	auto n = util::n_buckets(data.size());
 	auto d_sizes = bucket_sizes(d_data, n);
-	auto d_offsets = to_offsets(d_sizes);
-	auto ok = cudaMemcpy(offsets.data(), d_offsets.start, 3*sizeof(uint64_t), cudaMemcpyDeviceToHost);
+	auto d_offsets = to_offsets(d_sizes, data.size());
+	
+	auto offsets = util::filled_vec<uint64_t>(d_offsets.size(), 0);
+	auto ok = cudaMemcpy(offsets.data(), d_offsets.start, d_offsets.size()*sizeof(uint64_t), cudaMemcpyDeviceToHost);
 	gpu_assert(ok);
 	dbg(offsets);
 
-	/* auto buckets = place_elements(data, offsets, 2); */
+	auto d_buckets = place_elements(d_data, d_offsets, n);
+	vector<uint32_t> view_buckets = util::filled_vec<uint32_t>(d_buckets.size(), 0);
+	dbg(d_buckets.size());
+	ok = cudaMemcpy(view_buckets.data(), d_buckets.start, d_buckets.size()*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+	gpu_assert(ok);
+	dbg(view_buckets);
 
-	vector<uint32_t> buckets;
-	return buckets;
+	sort_buckets(d_buckets, d_offsets, n);
+
+	return download_sorted(d_buckets);
+	/* vector<uint32_t> test;
+	return test; */
 }
 }
