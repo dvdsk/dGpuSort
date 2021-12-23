@@ -6,6 +6,7 @@
 using std::vector;
 using std::size_t;
 using util::Slice;
+using util::div_up;
 
 // adapted from https://stackoverflow.com/a/14038590
 #define gpu_assert(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -21,6 +22,10 @@ static void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 __global__
 static void bucket_loop(Slice<uint32_t> data, Slice<uint64_t> offsets, uint32_t bucket_width) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i+1 >= offsets.size()) {
+		return;
+	}
+
 	// inner loop will run in each GPU thread
 	uint32_t start_inc = bucket_width * i;
 	uint32_t end_excl = bucket_width * (i + 1);
@@ -48,6 +53,24 @@ static Slice<uint32_t> data_to_gpu(const vector<uint32_t> &data) {
 	return d_slice;
 }
 
+struct GpuConfig {
+	unsigned int warps;
+	/// threads per core
+	unsigned int threads;
+};
+
+// 2 cuda cores per SMM, 24 SMM for titan x -> 48 cores
+// max 1536 threads per core. 512 is more ideal. 32 can simultaniously do work
+// more then 32 is better to hide memory latency etc
+static GpuConfig gpu_config(unsigned int n_tasks) {
+	GpuConfig config;
+	/* config.warps = 10;
+	config.threads = div_up(n_tasks, config.warps); */
+	config.threads = 256;
+	config.warps = div_up(n_tasks, config.threads);
+	return config;
+}
+
 /// count the needed size of each bucket and store them starting
 /// at index 1. Set index 0 to 0. After this function the gpu will have
 /// the bucket offsets at the pointer returned by this function
@@ -60,7 +83,8 @@ static Slice<uint64_t> bucket_sizes(Slice<uint32_t> d_data, const uint32_t n_buc
 
 	Slice d_sizes(d_arr, n_buckets+1);
 	auto bucket_width = std::numeric_limits<uint32_t>::max() / n_buckets;
-	bucket_loop<<<1,n_buckets-1>>>(d_data, d_sizes, bucket_width);
+	auto conf = gpu_config(n_buckets-1);
+	bucket_loop<<<conf.warps,conf.threads-1>>>(d_data, d_sizes, bucket_width);
 	ok = cudaDeviceSynchronize();
 	gpu_assert(ok);
 
@@ -91,6 +115,10 @@ static void d_place_elements(uint32_t bucket_width, Slice<uint32_t> data,
 		Slice<uint32_t> buckets, Slice<uint64_t> offsets) 
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i >= offsets.size()) {
+		return;
+	}
+
 	uint32_t start_inc = bucket_width * i;
 	uint32_t end_excl = bucket_width * (i + 1);
 
@@ -104,9 +132,6 @@ static void d_place_elements(uint32_t bucket_width, Slice<uint32_t> data,
 	}
 }
 
-// 2 cuda cores per SMM, 24 SMM for titan x -> 48 cores
-// max 1536 threads per core. 512 is more ideal. 32 can simultaniously do work
-// more then 32 is better to hide memory latency etc
 static Slice<uint32_t> place_elements(Slice<uint32_t> d_data, Slice<uint64_t> d_offsets, int n_buckets) {
 	uint32_t* d_arr = nullptr;
 	const auto buckets_size = d_data.size() * sizeof(uint32_t);
@@ -115,13 +140,9 @@ static Slice<uint32_t> place_elements(Slice<uint32_t> d_data, Slice<uint64_t> d_
 
 	auto bucket_width = std::numeric_limits<uint32_t>::max() / n_buckets;
 	
-	// need bucket_size threads
-	int block_size = 256;
-	int num_blocks = (n_buckets + block_size -1) / block_size;
-
 	Slice d_buckets(d_arr, d_data.size());
-	/* d_place_elements<<<num_blocks,block_size>>>(bucket_width, d_data, d_buckets, d_offsets); */
-	d_place_elements<<<1,2>>>(bucket_width, d_data, d_buckets, d_offsets);
+	auto conf = gpu_config(n_buckets-1);
+	d_place_elements<<<conf.warps, conf.threads>>>(bucket_width, d_data, d_buckets, d_offsets);
 	ok = cudaDeviceSynchronize();
 	gpu_assert(ok);
 
@@ -137,17 +158,20 @@ static vector<uint32_t> download_sorted(Slice<uint32_t> d_buckets) {
 
 __global__
 static void d_sort_buckets(Slice<uint32_t> buckets, Slice<uint64_t> offsets, size_t n_buckets) {
-	for (unsigned int i = 0; i < n_buckets; i++) {
-		auto length = offsets[i + 1] - offsets[i];
-		Slice bucket(buckets, offsets[i], length);
-		seq_sort::quick_sort(bucket);
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i >= n_buckets) {
+		return;
 	}
+
+	auto length = offsets[i + 1] - offsets[i];
+	Slice bucket(buckets, offsets[i], length);
+	seq_sort::quick_sort(bucket);
 }
 
 static void sort_buckets(Slice<uint32_t> d_buckets, Slice<uint64_t> d_offsets, size_t n_buckets) {
-	int block_size = 256;
-	int num_blocks = (n_buckets + block_size -1) / block_size;
-	d_sort_buckets<<<num_blocks, block_size>>>(d_buckets, d_offsets, n_buckets);
+	auto conf = gpu_config(n_buckets-1);
+	dbg(conf.warps, conf.threads);
+	d_sort_buckets<<<conf.warps, conf.threads>>>(d_buckets, d_offsets, n_buckets);
 	auto ok = cudaDeviceSynchronize();
 	gpu_assert(ok);
 }
@@ -155,7 +179,8 @@ static void sort_buckets(Slice<uint32_t> d_buckets, Slice<uint64_t> d_offsets, s
 namespace gpu {
 vector<uint32_t> sort(vector<uint32_t>& data) {
 	auto d_data = data_to_gpu(data);
-	auto n = util::n_buckets(data.size());
+	auto n = util::n_buckets(data.size(), true);
+	dbg(n);
 	auto d_sizes = bucket_sizes(d_data, n);
 	auto d_offsets = to_offsets(d_sizes, data.size());
 	

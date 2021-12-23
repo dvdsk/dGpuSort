@@ -7,7 +7,7 @@ using seq_sort::quick_sort;
 
 using std::vector;
 int main() {
-	vector<uint32_t> data = util::random_array(2000, 0);
+	vector<uint32_t> data = util::random_array(20, 0);
 
 	Slice slice(data, 0, data.size());
 	quick_sort(slice);

@@ -14,7 +14,7 @@
 
 namespace util
 {
-uint32_t n_buckets(std::size_t n_elem);
+uint32_t n_buckets(std::size_t n_elem, bool gpu);
 
 template <typename T> class SliceIterator {
 	template <typename U> friend class Slice;
@@ -63,6 +63,10 @@ template <typename T> class Slice {
 		assert(offset + _len <= vec.size());
 		start = vec.data() + offset;
 		len = _len;
+	}
+	Slice(std::vector<T> &vec) {
+		start = vec.data();
+		len = vec.size();
 	}
 	std::vector<T> as_vec() {
 		std::vector<T> vec;
@@ -118,7 +122,8 @@ std::ostream &operator<<(std::ostream &os, const Slice<T> slice)
 template <typename T> std::vector<T> filled_vec(uint64_t len, T value);
 std::vector<uint32_t> random_array(long unsigned int n, long unsigned int seed);
 void assert_sort(std::vector<uint32_t> &sorted, std::vector<uint32_t> &data);
-int devide_up(int num, int denum);
+void assert_sort(util::Slice<uint32_t> sorted, util::Slice<uint32_t> data);
+template <typename T> T div_up(T num, T denum);
 
 } // namespace util
 

@@ -84,7 +84,7 @@ vector<uint32_t> place_elements(const vector<uint32_t> &data,
 
 vector<uint32_t> sort(std::vector<uint32_t> &data)
 {
-	auto n = util::n_buckets(data.size());
+	auto n = util::n_buckets(data.size(), false);
 	auto bucket_offsets = offsets(data, n);
 	// TODO merge and split buckets that are too large/small
 	// only if absolutely needed (do not think so, should be uniform?)

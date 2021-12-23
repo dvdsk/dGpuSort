@@ -50,8 +50,7 @@ DIAGNOSTICS := -Og \
 	-D _GLIBCXX_DEBUG_PEDANTIC=1 \
 	-D DBG_MACRO_NO_WARNING \
 	-fsanitize=address \
-	-fsanitize-address-use-after-scope \
-	# -fuse-ld=lld \
+	-fsanitize-address-use-after-scope
 # link to binutils_dev for nicer stack tracing
 DIAGNOSTICS += -lbfd -ldl
 
@@ -75,7 +74,9 @@ target/debug: $(addprefix build/, main.o $(DEPS) dist.o)
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^ 
 
 target/release: override CXX := mpic++
-target/release: override CCFLAGS := $(BASIC) $(WARNINGS) $(PERFORMANCE)
+
+target/release: override CCFLAGS := $(BASIC) $(HEADERS) $(WARNINGS) $(DIAGNOSTICS)
+# target/release: override CCFLAGS := $(BASIC) $(HEADERS) $(WARNINGS) #$(PERFORMANCE)
 target/release: override CUDA_DIAG := 
 target/release: $(addprefix build/, main.o $(OBJ) dist.o)
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^

@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
 		seed = std::stoul(argv[1]);
 	}
 
-	vector<uint32_t> data = util::random_array(20, seed);
+	vector<uint32_t> data = util::random_array(200000, seed);
 	auto sorted = cpu::sort(data);
 
 	util::assert_sort(sorted, data);

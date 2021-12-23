@@ -41,7 +41,7 @@ vector<uint32_t> random_array(long unsigned int n, long unsigned int seed)
 }
 
 // checks if data in array is sorted in ascending order
-static bool is_sorted(vector<uint32_t> &data)
+static bool is_sorted(util::Slice<uint32_t> data)
 {
 	uint32_t prev = 0;
 	for (const auto &n : data) {
@@ -49,16 +49,21 @@ static bool is_sorted(vector<uint32_t> &data)
 			prev = n;
 			continue;
 		}
-		dbg("prev was smaller then current", prev, n);
+		dbg("prev was larger then current", prev, n);
 		return false;
 	}
 	return true;
 }
 
-void assert_sort(std::vector<uint32_t> &sorted, std::vector<uint32_t> &data)
+void assert_sort(util::Slice<uint32_t> sorted, util::Slice<uint32_t> data)
 {
 	assert(sorted.size() == data.size() || !"elements went missing");
 	assert(util::is_sorted(sorted) || !"data not sorted");
+}
+void assert_sort(std::vector<uint32_t> &sorted, std::vector<uint32_t> &data)
+{
+	assert(sorted.size() == data.size() || !"elements went missing");
+	assert(util::is_sorted(util::Slice(sorted)) || !"data not sorted");
 }
 
 static uint32_t divide_round_up(uint32_t n, uint32_t d)
@@ -66,19 +71,24 @@ static uint32_t divide_round_up(uint32_t n, uint32_t d)
 	return (n + (d - 1)) / d;
 }
 
-uint32_t n_buckets(std::size_t n_elem)
+template <typename T> T div_up(T n, T d)
 {
-	if (n_elem <= 20) {
-		return 2; // test case
+	return (n + (d - 1)) / d;
+}
+
+template int div_up<int>(int, int);
+template uint32_t div_up<uint32_t>(uint32_t, uint32_t);
+
+uint32_t n_buckets(std::size_t n_elem, bool gpu)
+{
+	int bucket_size;
+	if (gpu) {
+		bucket_size = 48;
+	} else {
+		bucket_size = 4096;
 	}
-
-	constexpr int BUCKET_SIZE = 1024;
-	// constexpr int BUCKET_SIZE = 1000;
-	return divide_round_up(n_elem, BUCKET_SIZE);
+	auto n_buckets = div_up(n_elem, static_cast<std::size_t>(bucket_size));
+	return std::max(n_buckets, 2ul);
 }
 
-int devide_up(int num, int denum)
-{
-	return (num + denum - 1) / denum;
-}
 } // namespace util
