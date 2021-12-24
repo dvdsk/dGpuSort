@@ -1,0 +1,87 @@
+\documentclass[lang=en, hanging-titles=true]{skrapport}
+
+%\usepackage[backend=biber]{biblatex}
+%\addbibresource{References.bib}
+
+\usepackage[hidelinks]{hyperref}
+\usepackage{graphicx} % allow embedded images
+  \setkeys{Gin}{width=\linewidth,totalheight=\textheight,keepaspectratio}
+  \graphicspath{{../figs/}} % set of paths to search for images
+\usepackage{ragged2e}
+\usepackage{ctable}
+% \usepackage{float}
+% \usepackage{subcaption}
+%   \captionsetup{compatibility=false}
+% \usepackage[toc,page]{appendix} %appendices with sections
+% \usepackage{amsmath}  % extended mathematics
+% \usepackage{booktabs} % book-quality tables
+% \usepackage{units}    % non-stacked fractions and better unit spacing
+% \usepackage{multicol} % multiple column layout facilities
+% \usepackage{lipsum}   % filler text
+% \usepackage{fancyvrb} % extended verbatim environments
+% \usepackage{multicol} % multi column lists
+
+\raggedright
+\colortheme{skdoc}
+\title{Parallel Sorting}
+\author{David Kleingeld}
+
+
+\begin{document}
+
+%\begin{titlepage}
+\maketitle
+%\end{titlepage}
+
+\section{Introduction}
+For many applications storing items in some order is essential to achieve reasonable performance. A lookup in a sorted list being way faster then having to inspect on average $n/2$ items. However the act of sorting itself can challange performance. Here I attempt to implement parallel sorting sorting with optional GPU accelaration. I will explain the challanges in the next section then I will detailing my implementation followed by benchmarking the performance before finally concluding weather this is a good implementation.
+
+Keeping data in sorted order dramatically speeds .
+Sorting is one of the first algorithms taught to anyone starting to program. It is also 
+% - Sorting easy
+% - Order most important: n + algs (mention
+% - Parallel quicksort 
+\section{Theory}
+There are two metrics that govern the speed of any sorting implementation: the big O of the algorithm and the size of the input. The best sorting algorithms scale with $n\cdot log(n)$. Though such algorithms might not always be the best choice for small inputs. \textit{Insertion sort} for example beats \textit{Quick sort} at small sizes. There are also sorting networks that achieve parallel times of $log^2(n)$ however these are terribly complex to implement. 
+\textit{Bucket sort} is distributed sorting algorithm, it reduces the task of sorting to ordering groups of items, a simpler task. Then these smaller groups can then be sorted on their own using any sorting algorithm.
+Better performance can be achieved combining sorting methods. Quicksorts can be sped up by using insertion sort to sort small partitions. 
+
+Current Gpu's consist of many processors grouped into streaming multiprocessors (SMs). To optimally use the GPU a program should use all the SMs at the same time. Each SM can have many active threads.
+
+\section{Implementation}
+I use a devide and conquer stratagy to parallelise sorting, splitting the input into pieces that can be sorted independently. For this I use bucket sort. Parallelisation is achieved by using MPI with multile nodes. The sorting problem is a random array of integers. It is created on the main node, split into pieces using bucket sort which are then send to the workers. The workers can sort on the cpu or gpu the algorithm is identical. In each case sorting is done by bucketsort with hybrid quicksort. The hybrid quicksort uses intestion sort on inputs $< 16$ elements. 
+
+On the GPU finding the size of the each bucket and copying each element of the input into its bucket is completly parallel. Once the data has been placed into buckets the hybrid quicksort routine is ran on the gpu over each bucket in parallel.
+
+\section{Results}
+To test the performance of both the GPU and CPU implementations and how they scale with the number of nodes my implementation was tested with 1, 2, 4, 8 and 16 nodes. Using total data sizes of:
+
+\begin{enumerate}
+	\item 200.000
+	\item 1.600.000
+	\item 80.000.000
+	\item 16.000.000.000
+\end{enumerate}
+
+I ran into issues running Quicksort on the GPU. I had to dramatically reduce the bucket size from 1024 to 48 or the quicksort kernel would not launch on the GPU. I think the number of recurive quicksort calls take up to much memory. If I decreased the to be sorted list I could increase the bucket size. The GPU version of the algorithm could not sort more then about 400.000 integers.
+
+
+
+\section{Conclusion}
+
+
+futurwork
+split on worker nodes again
+
+%\input{content/conclusion}
+
+\clearpage
+\appendix
+%\section{Run Instructions}
+% \input{content/run_instructions}
+%\printbibliography
+
+\end{document}
+
+\pagestyle{scrheadings} % Show chapter titles as headings
+\cleardoublepage % Avoids problems with pdfbookmark
