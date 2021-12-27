@@ -55,9 +55,9 @@ DIAGNOSTICS := -Og \
 DIAGNOSTICS += -lbfd -ldl
 
 PERFORMANCE := -O3 -flto -D DBG_MACRO_DISABLE -D DBG_MACRO_NO_WARNING
-CUDA_BASIC := $(BASIC)
-CUDA_DIAG := -D _GLIBCXX_DEBUG -D _GLIBCXX_DEBUG_PEDANTIC
-CUDA_CCFLAGS := $(BASIC) $(HEADERS) $(CUDA_DIAG) -x cu -arch=sm_50 -dc -g -G
+CUDA_BASIC := $(BASIC) -x cu -arch=sm_50 -dc
+CUDA_DIAG := -D _GLIBCXX_DEBUG -D _GLIBCXX_DEBUG_PEDANTIC -g -G
+CUDA_CCFLAGS := $(CUDA_BASIC) $(HEADERS) $(CUDA_DIAG)
 CUDA_LDFLAGS := -arch=sm_50 -dlink 
 CCFLAGS := $(BASIC) $(HEADERS) $(WARNINGS) $(DIAGNOSTICS)
 LDFLAGS := -lcudart -L/usr/lib/cuda/lib64
@@ -74,11 +74,13 @@ target/debug: $(addprefix build/, main.o $(DEPS) dist.o)
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^ 
 
 target/release: override CXX := mpic++
+target/release: override CCFLAGS := $(BASIC) $(HEADERS) $(WARNINGS) $(PERFORMANCE)
+target/release: override CUDA_CCFLAGS := $(CUDA_BASIC) $(HEADERS) -O3
+target/release: $(addprefix build/, main.o $(OBJ) dist.o)
+	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
-target/release: override CCFLAGS := $(BASIC) $(HEADERS) $(WARNINGS) $(DIAGNOSTICS)
-# target/release: override CCFLAGS := $(BASIC) $(HEADERS) $(WARNINGS) #$(PERFORMANCE)
-target/release: override CUDA_DIAG := 
-target/release: $(addprefix build/, main.o $(OBJ) dist.o backward.o)
+target/debug: override CXX := mpic++
+target/debug: $(addprefix build/, main.o $(OBJ) dist.o backward.o)
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
 target/test_gpu: $(addprefix build/, test_gpu.o $(DEPS))

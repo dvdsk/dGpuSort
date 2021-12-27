@@ -3,6 +3,7 @@
 #include "gpu.hpp"
 #include "dist.hpp"
 #include <cassert>
+#include <chrono>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -55,6 +56,8 @@ void sort_on_host(util::Slice<uint32_t> slice, bool use_gpu)
 	}
 }
 
+using std::chrono::steady_clock;
+using std::chrono::duration;
 int main(int argc, char *argv[])
 {
 	if (argc < 3) {
@@ -75,16 +78,27 @@ int main(int argc, char *argv[])
 	dist::init(argc, argv);
 	if (dist::main_process()) {
 		vector<uint32_t> to_sort = util::random_array(size, seed);
+
+		auto start = steady_clock::now();
 		auto tasks = dist::to_tasks(to_sort);
 		dist::fan_out(tasks);
 
 		sort_on_host(tasks.slices[0], use_gpu);
 
 		dist::fan_in(tasks);
+		auto end = steady_clock::now();
+		auto elapsed = duration<double>(end-start).count();
+		printf("%.20f\n", elapsed);
+
 		auto sorted = std::move(tasks.data);
 		dist::wait_till_done();
 		dbg("done");
 		util::assert_sort(sorted, to_sort);
+
+		// for (unsigned int i=0; i<sorted.size(); i+=10000) {
+		// 	printf("%u\n", sorted[i]);
+		// }
+
 	} else {
 		auto data = dist::recieve();
 		vector<uint32_t> sorted;

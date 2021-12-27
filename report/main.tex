@@ -3,7 +3,7 @@
 %\usepackage[backend=biber]{biblatex}
 %\addbibresource{References.bib}
 
-% \usepackage[hidelinks]{hyperref}
+\usepackage[hidelinks]{hyperref}
 % \usepackage{graphicx} % allow embedded images
 %   \setkeys{Gin}{width=\linewidth,totalheight=\textheight,keepaspectratio}
 %   \graphicspath{{../figs/}} % set of paths to search for images
@@ -34,7 +34,7 @@
 %\end{titlepage}
 
 \section{Introduction}
-For many applications storing items in some order is essential to achieve reasonable performance. A lookup in a sorted list being way faster then having to inspect on average $n/2$ items. However the act of sorting itself can challange performance. Here I attempt to implement parallel sorting sorting with optional GPU accelaration. I will explain the challanges in the next section then I will detailing my implementation followed by benchmarking the performance before finally concluding weather this is a good implementation.
+For many applications storing items in some order is essential to achieve reasonable performance. A lookup in a sorted list being way faster then having to inspect on average $n/2$ items. However the act of sorting itself can challenge performance. Here I attempt to implement parallel sorting sorting with optional GPU acceleration. I will explain the challenges in the next section then I will detailing my implementation followed by benchmarking the performance before finally concluding weather this is a good implementation.
 
 Keeping data in sorted order dramatically speeds .
 Sorting is one of the first algorithms taught to anyone starting to program. It is also 
@@ -49,29 +49,41 @@ Better performance can be achieved combining sorting methods. Quicksorts can be 
 Current Gpu's consist of many processors grouped into streaming multiprocessors (SMs). To optimally use the GPU a program should use all the SMs at the same time. Each SM can have many active threads.
 
 \section{Implementation}
-I use a devide and conquer stratagy to parallelise sorting, splitting the input into pieces that can be sorted independently. For this I use bucket sort. Parallelisation is achieved by using MPI with multile nodes. The sorting problem is a random array of integers. It is created on the main node, split into pieces using bucket sort which are then send to the workers. The workers can sort on the cpu or gpu the algorithm is identical. In each case sorting is done by bucketsort with hybrid quicksort. The hybrid quicksort uses intestion sort on inputs $< 16$ elements. 
+I use a divide and conquer strategy to parallelism sorting, splitting the input into pieces that can be sorted independently. For this I use bucket sort. Parallelism's is achieved by using MPI with multiple nodes. The sorting problem is a random array of integers. It is created on the main node, split into pieces using bucket sort which are then send to the workers. The workers can sort on the CPU or GPU the algorithm is identical. In each case sorting is done by bucket-sort with hybrid quick-sort. The hybrid quick-sort uses insertion sort on inputs $< 16$ elements. 
 
-On the GPU finding the size of the each bucket and copying each element of the input into its bucket is completly parallel. Once the data has been placed into buckets the hybrid quicksort routine is ran on the gpu over each bucket in parallel.
+On the GPU finding the size of the each bucket and copying each element of the input into its bucket is completely parallel. Once the data has been placed into buckets the hybrid quick-sort routine is ran on the GPU over each bucket in parallel.
+
+The MPI calls \texttt{mpi\_send} and \texttt{mpi\_recv} are replaced with a wrapper function that splits arrays that are to large to be send in a single send or recv call.
 
 \section{Results}
-To test the performance of both the GPU and CPU implementations and how they scale with the number of nodes my implementation was tested with 1, 2, 4, 8 and 16 nodes. Using total data sizes of:
+To test the performance of both the GPU and CPU implementations and how they scale with the number of nodes my implementation was tested with 1, 2, 4, and 8 nodes. Using total data sizes of:
 
 \begin{enumerate}
 	\item 200.000
 	\item 1.600.000
-	\item 80.000.000
-	\item 16.000.000.000
+	% \item 80.000.000
+	% \item 16.000.000.000
 \end{enumerate}
 
-I ran into issues running Quicksort on the GPU. I had to dramatically reduce the bucket size from 1024 to 48 or the quicksort kernel would not launch on the GPU. I think the number of recurive quicksort calls take up to much memory. If I decreased the to be sorted list I could increase the bucket size. The GPU version of the algorithm could not sort more then about 400.000 integers.
+Originally I intended to test with larger sizes. However the arrays came back unsorted at a size of 64.000.000 and runs started to take too long (53 seconds on a single node). At the time this was written one of the nodes on the das5 was reserved by another user for multiple days. I could therefore not test with 16 nodes.
 
+I ran into issues running Quick-sort on the GPU. I had to dramatically reduce the bucket size from 1024 to 48 or the quick-sort kernel would not launch on the GPU. I think the number of recursive quick-sort calls take up to much memory. If I decreased the to be sorted list I could increase the bucket size. The GPU version of the algorithm could not sort more then about 400.000 integers.
 
+In \autoref{fig:cpu} we see the run time (logarithmic) vs the number of nodes used. The seeds used are: 305441741 270544960 1088997156 2043394589 2893796441. The c++ standard library implementation of the mt19937 pseudo-random generator was used to generate data to be sorted.
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics{../figs/runtime.png}
+	\caption{Run time vs number of nodes sorting 1.600.000 and 200.000 random numbers numbers, blue and red lines. Five runs for each size with different seeds}
+	\label{fig:cpu}
+\end{figure}
 
 \section{Conclusion}
+Sorting numbers at scale is a challenging job. As we saw in the previous section at a large scale the implementation provided breaks while it performs fine at smaller inputs. GPU scaling is extra challenging due to the unfamiliar run time environment. A frequent cause of GPU kernel launch failure is the GPU running out of memory. It could be that my GPU code breaks at scale due to memory shortages if the recursion causes data to be duplicated. I could not determine the cause. 
 
+Inspecting the CPU runs we see that at the smaller scale higher degrees of parallelism give increasing slow down. This is due to the communication overhead of copying to be sorted data to the nodes and sorted data back again. As size increases we can use more nodes before communication overhead dominates gain.
 
-futurwork
-split on worker nodes again
+In the future the GPU algorithm should be modified changed to one without the need for a recursive component while keeping the attractive $n\cdot log(n)$ scaling.
 
 %\input{content/conclusion}
 
