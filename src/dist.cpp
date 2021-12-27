@@ -1,5 +1,6 @@
 #include <cassert>
 #include <cstdint>
+#include <limits>
 #include <vector>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
@@ -34,22 +35,60 @@ static unsigned int nodes()
 	return static_cast<unsigned int>(nodes);
 }
 
-static void send_slice(unsigned int destination, util::Slice<uint32_t> slice) {
-	auto length = slice.size();
-	MPI_Send(&length, 1, MPI_UNSIGNED_LONG, destination, dist::SLICE_LENGTH, MPI_COMM_WORLD);
-	MPI_Send(slice.start, slice.size(), MPI_UNSIGNED, destination, dist::SLICE_DATA, MPI_COMM_WORLD);
+// mpi has a maximum send size of u32::max elements, this bypasses that
+// by sending in batches, the size must already be known on the other size
+static void mpi_send(unsigned int destination, uint32_t *start, size_t size)
+{
+	const auto max = std::numeric_limits<uint32_t>::max();
+	unsigned int send = 0;
+	while (size - send > max) {
+		dbg("NOPE");
+		auto offset = start + send;
+		MPI_Send(offset, size, MPI_UNSIGNED, destination,
+			 dist::SLICE_DATA, MPI_COMM_WORLD);
+		send += max;
+	}
+	auto offset = start + send;
+	MPI_Send(offset, size, MPI_UNSIGNED, destination, dist::SLICE_DATA,
+		 MPI_COMM_WORLD);
 }
 
-static void assert_ok(int ok) {
+// size has te be known in advance, memory needs to be preallocated
+static void mpi_recv(unsigned int source, uint32_t *start, size_t size)
+{
+	dbg(source, size);
+	const auto max = std::numeric_limits<uint32_t>::max();
+	unsigned int got = 0;
+	while (size - got > max) {
+		dbg("NOPE");
+		auto offset = start + got;
+		auto ok = MPI_Recv(offset, size, MPI_UNSIGNED, source,
+				   dist::SLICE_DATA, MPI_COMM_WORLD,
+				   MPI_STATUS_IGNORE);
+		assert(ok == MPI_SUCCESS);
+		got += max;
+	}
+	auto offset = start + got;
+	auto ok = MPI_Recv(offset, size, MPI_UNSIGNED, source, dist::SLICE_DATA,
+			   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	assert(ok == MPI_SUCCESS);
+}
+
+static void send_slice(unsigned int destination, util::Slice<uint32_t> slice)
+{
+	dbg("");
+	auto size = slice.size();
+	MPI_Send(&size, 1, MPI_UNSIGNED_LONG, destination, dist::SLICE_LENGTH,
+		 MPI_COMM_WORLD);
+	mpi_send(destination, const_cast<uint32_t *>(slice.start),
+		 slice.size());
 }
 
 static void recieve_slice(unsigned int source, util::Slice<uint32_t> &slice)
 {
-	auto buffer = const_cast<uint32_t*>(slice.start);
-	auto ok = MPI_Recv(buffer, slice.size(), MPI_UNSIGNED_LONG, source,
-		 dist::SLICE_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	assert_ok(ok);
+	dbg("");
+	auto buffer = const_cast<uint32_t *>(slice.start);
+	mpi_recv(source, buffer, slice.size());
 }
 
 namespace dist
@@ -72,48 +111,44 @@ bool main_process()
 Task to_tasks(const vector<uint32_t> &data)
 {
 	Task task;
-	auto n_tasks = nodes() - 1; //master node does no work
+	auto n_tasks = nodes();
 	auto offsets = cpu::offsets(data, n_tasks);
 	task.data = cpu::place_elements(data, offsets, n_tasks);
-	dbg(n_tasks);
 	for (unsigned int i = 0; i < n_tasks; i++) {
 		auto length = offsets[i + 1] - offsets[i];
 		util::Slice slice(task.data, offsets[i], length);
 		task.slices.push_back(slice);
 	}
 
-	dbg(task.slices.size());
 	return task;
 }
 
 void fan_out(Task &tasks)
 {
-	for (unsigned int i = 0; i < tasks.slices.size(); i++) {
+	for (unsigned int i = 1; i < tasks.slices.size(); i++) {
 		auto slice = tasks.slices[i];
-		send_slice(i+1, slice);
+		send_slice(i, slice);
 	}
 }
 
 void wait_till_done()
 {
-	dbg("");
 	MPI_Barrier(MPI_COMM_WORLD);
 }
 
 void signal_done()
 {
-	dbg("");
 	MPI_Barrier(MPI_COMM_WORLD);
 }
 
 void fan_in(Task &tasks)
 {
-	for (unsigned int i = 0; i < tasks.slices.size(); i++) {
+	for (unsigned int i = 1; i < tasks.slices.size(); i++) {
 		auto &slice = tasks.slices[i];
-		recieve_slice(i+1, slice);
+		recieve_slice(i, slice);
 		dbg(i);
 		util::assert_sort(slice, slice);
-		dbg("fan in done");
+		dbg("post");
 	}
 }
 
@@ -121,28 +156,25 @@ vector<uint32_t> recieve()
 {
 	constexpr int SOURCE = 0;
 	uint64_t slice_length;
-	auto ok = MPI_Recv(&slice_length, 1, MPI_UNSIGNED_LONG, SOURCE,
-		 dist::SLICE_LENGTH, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	assert_ok(ok);
+	auto ok =
+		MPI_Recv(&slice_length, 1, MPI_UNSIGNED_LONG, SOURCE,
+			 dist::SLICE_LENGTH, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	assert(ok == MPI_SUCCESS);
+
 	vector<uint32_t> data;
 	data.resize(slice_length);
-
-	ok = MPI_Recv(data.data(), slice_length, MPI_UNSIGNED, SOURCE,
-		 dist::SLICE_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	assert_ok(ok);
+	mpi_recv(SOURCE, data.data(), slice_length);
 
 	return data;
 }
 
 void send(const vector<uint32_t> &data)
 {
+	dbg("");
 	constexpr int DESTINATION = 0;
-	dbg("sending slice");
-	util::assert_sort(data, data);
 	dbg(data);
-	auto ok = MPI_Send(data.data(), data.size(), MPI_UNSIGNED, DESTINATION,
-		  dist::SLICE_DATA, MPI_COMM_WORLD);
-	assert_ok(ok);
+	util::assert_sort(data, data);
+	mpi_send(DESTINATION, const_cast<uint32_t *>(data.data()), data.size());
 }
 
 void cleanup()

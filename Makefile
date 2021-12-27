@@ -24,9 +24,7 @@ include compile.mk
 # -----------------------------------------------------------------------------
 
 test: target/release
-	prun -np 2 -script $(PRUN_ETC)/prun-openmpi -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/release 5 2000 0
-	# $(RUNTIME_ENV) target/test_gpu
-	# $(RUNTIME_ENV) target/test_cpu
+	prun -np 2 -script $(PRUN_ETC)/prun-openmpi -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/release 5 4000000 0
 	
 test_gpu: target/test_gpu
 	prun -np 1 -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/test_gpu

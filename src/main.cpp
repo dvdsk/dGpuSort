@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <string>
 
+using std::vector;
+
 static void print_help()
 {
 	std::cerr
@@ -33,7 +35,26 @@ static void parse_args(char *argv[], unsigned long int &seed,
 	}
 }
 
-using std::vector;
+void sort_on_host(util::Slice<uint32_t> slice, bool use_gpu)
+{
+	vector<uint32_t> data;
+	data.reserve(slice.size());
+	for (const auto e : slice) {
+		data.push_back(e);
+	}
+
+	vector<uint32_t> sorted;
+	if (use_gpu) {
+		sorted = gpu::sort(data);
+	} else {
+		sorted = cpu::sort(data);
+	}
+
+	for (unsigned int i=0; i<slice.size(); i++) {
+		slice[i] = sorted[i];
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	if (argc < 3) {
@@ -53,13 +74,17 @@ int main(int argc, char *argv[])
 
 	dist::init(argc, argv);
 	if (dist::main_process()) {
-		vector<uint32_t> data = util::random_array(size, seed);
-		auto tasks = dist::to_tasks(data);
+		vector<uint32_t> to_sort = util::random_array(size, seed);
+		auto tasks = dist::to_tasks(to_sort);
 		dist::fan_out(tasks);
+
+		sort_on_host(tasks.slices[0], use_gpu);
+
 		dist::fan_in(tasks);
 		auto sorted = std::move(tasks.data);
 		dist::wait_till_done();
-		util::assert_sort(sorted, data);
+		dbg("done");
+		util::assert_sort(sorted, to_sort);
 	} else {
 		auto data = dist::recieve();
 		vector<uint32_t> sorted;
