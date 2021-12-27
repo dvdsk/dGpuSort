@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ostream>
+#include <type_traits>
 #ifdef __CUDACC__
 #define CUDA_CALLABLE __host__ __device__
 #else
@@ -20,8 +21,11 @@ template <typename T> class SliceIterator {
 	template <typename U> friend class Slice;
 
     public:
-	CUDA_CALLABLE SliceIterator(T *_pos, uint64_t _len)
-		: pos(_pos), len(_len){};
+	CUDA_CALLABLE SliceIterator(const T *_pos, uint64_t _len)
+	{
+		pos = const_cast<T*>(_pos);
+		len = _len;
+	};
 	CUDA_CALLABLE SliceIterator &operator++()
 	{
 		pos += 1;
@@ -44,7 +48,7 @@ template <typename T> class SliceIterator {
 template <typename T> class Slice {
     public:
 	// start of slice, pointer
-	T *start;
+	const T *start;
 	// length of slice in elements
 	uint64_t len;
 	CUDA_CALLABLE Slice(T *_start, uint64_t _len)
@@ -64,7 +68,7 @@ template <typename T> class Slice {
 		start = vec.data() + offset;
 		len = _len;
 	}
-	Slice(std::vector<T> &vec) {
+	Slice(const std::vector<T> &vec) {
 		start = vec.data();
 		len = vec.size();
 	}
@@ -121,7 +125,7 @@ std::ostream &operator<<(std::ostream &os, const Slice<T> slice)
 
 template <typename T> std::vector<T> filled_vec(uint64_t len, T value);
 std::vector<uint32_t> random_array(long unsigned int n, long unsigned int seed);
-void assert_sort(std::vector<uint32_t> &sorted, std::vector<uint32_t> &data);
+void assert_sort(const std::vector<uint32_t> &sorted, const std::vector<uint32_t> &data);
 void assert_sort(util::Slice<uint32_t> sorted, util::Slice<uint32_t> data);
 template <typename T> T div_up(T num, T denum);
 

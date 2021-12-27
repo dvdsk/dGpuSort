@@ -60,7 +60,7 @@ void assert_sort(util::Slice<uint32_t> sorted, util::Slice<uint32_t> data)
 	assert(sorted.size() == data.size() || !"elements went missing");
 	assert(util::is_sorted(sorted) || !"data not sorted");
 }
-void assert_sort(std::vector<uint32_t> &sorted, std::vector<uint32_t> &data)
+void assert_sort(const std::vector<uint32_t> &sorted, const std::vector<uint32_t> &data)
 {
 	assert(sorted.size() == data.size() || !"elements went missing");
 	assert(util::is_sorted(util::Slice(sorted)) || !"data not sorted");

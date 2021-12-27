@@ -23,7 +23,8 @@ include compile.mk
 # Testing
 # -----------------------------------------------------------------------------
 
-test: target/test_gpu target/test_cpu
+test: target/release
+	prun -np 1 -script $(PRUN_ETC)/prun-openmpi -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/release 5 20000 0
 	# $(RUNTIME_ENV) target/test_gpu
 	# $(RUNTIME_ENV) target/test_cpu
 	
@@ -31,7 +32,7 @@ test_gpu: target/test_gpu
 	prun -np 1 -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/test_gpu
 
 dist_cpu/%: target/test_dist
-	prun -np 2 -script $(PRUN_ETC)/prun-openmpi -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/test_dist
+	prun -np % -script $(PRUN_ETC)/prun-openmpi -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/test_dist
 
 # -----------------------------------------------------------------------------
 # Util
