@@ -5,8 +5,6 @@ main.fls main.xdv missfont.log main.fdb_latexmk main.run.xml main.bcf "main.sync
 
 pdf:  ${content} ${figs} References.bib
 	pdflatex main \
-	&& bibtex main; \
-	   biber main \
 	&& pdflatex main
 
 open: pdf
