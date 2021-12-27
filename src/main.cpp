@@ -36,7 +36,7 @@ static void parse_args(char *argv[], unsigned long int &seed,
 using std::vector;
 int main(int argc, char *argv[])
 {
-	if (argc != 3) {
+	if (argc < 3) {
 		print_help();
 	}
 
@@ -53,13 +53,13 @@ int main(int argc, char *argv[])
 
 	dist::init(argc, argv);
 	if (dist::main_process()) {
-		vector<uint32_t> data = util::random_array(200000, seed);
+		vector<uint32_t> data = util::random_array(size, seed);
 		auto tasks = dist::to_tasks(data);
 		dist::fan_out(tasks);
 		dist::fan_in(tasks);
 		auto sorted = std::move(tasks.data);
-		util::assert_sort(sorted, data);
 		dist::wait_till_done();
+		util::assert_sort(sorted, data);
 	} else {
 		auto data = dist::recieve();
 		vector<uint32_t> sorted;
