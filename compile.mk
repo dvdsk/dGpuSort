@@ -79,10 +79,6 @@ target/release: override CUDA_CCFLAGS := $(CUDA_BASIC) $(HEADERS) -O3
 target/release: $(addprefix build/, main.o $(OBJ) dist.o)
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 
-target/debug: override CXX := mpic++
-target/debug: $(addprefix build/, main.o $(OBJ) dist.o backward.o)
-	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
-
 target/test_gpu: $(addprefix build/, test_gpu.o $(DEPS))
 	$(CXX) $(CCFLAGS) $(LDFLAGS) -o $@ $^
 

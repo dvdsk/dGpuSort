@@ -5,6 +5,7 @@
 
 RUNTIME_ENV := ASAN_OPTIONS=protect_shadow_gap=0:replace_intrin=0:detect_leaks=0
 
+all: sort
 # -----------------------------------------------------------------------------
 #  Setting up data and dirs
 # -----------------------------------------------------------------------------
@@ -22,6 +23,9 @@ include compile.mk
 # -----------------------------------------------------------------------------
 # Testing
 # -----------------------------------------------------------------------------
+
+sort: target/release
+	mv target/release sort
 
 test: target/release
 	prun -np 1 -script $(PRUN_ETC)/prun-openmpi -native '-C TitanX --gres=gpu:1' $(RUNTIME_ENV) `pwd`/target/release 5 80000000 1
@@ -42,8 +46,7 @@ dist_cpu/%: target/test_dist
 # Util
 # -----------------------------------------------------------------------------
 
-.PHONY: all clean directories run r
-all: parallel
+.PHONY: clean directories run r
 
 clean:
 	rm -f build/*.o 
